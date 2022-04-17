@@ -59,6 +59,7 @@ static PRM_Name		constraintIteration("constraintIteration", "Constraint Iteratio
 static PRM_Name		constraintStiffness("constraintStiffness", "Constraint Stiffness");
 static PRM_Name		viscosity("viscosity", "Viscosity");
 static PRM_Name		vorticityConfinement("vorticityConfinement", "Vorticity Confinement");
+static PRM_Name		timeFrame("timeFrame", "Time Frame");
 
 
 
@@ -79,8 +80,9 @@ static PRM_Default constraintIterationDefault(4);
 static PRM_Default constraintStiffnessDefault(0.1);
 static PRM_Default viscosityDefault(0.001);
 static PRM_Default vorticityConfinementDefault(0.001);
+static PRM_Default timeFrameDefault(0);
 
-
+static PRM_Range timeFrameRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, 60);
 
 
 
@@ -100,6 +102,7 @@ PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &constraintIteration, &co
 PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &constraintStiffness, &constraintStiffnessDefault, 0),
 PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0),
 PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0),
+PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &timeFrame, &timeFrameDefault, 0, &timeFrameRange),
 
 
 
@@ -161,6 +164,20 @@ SOP_Fluid::SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op)
     myCurrPoint = -1;	// To prevent garbage values from being returned
 	myFS = new FluidSystem();
 	myFS->SPH_CreateExample(0, 0);
+
+	//for test
+	for (int i = 0; i <= 60; ++i)
+	{
+		myFS->Run();
+
+		std::vector<glm::dvec3> temp;
+		for (auto& f : myFS->fluidPs) {
+			glm::dvec3 scaledPos = f->pos;
+			scaledPos /= SPH_RADIUS;
+			temp.push_back(scaledPos);
+		}
+		totalPos.push_back(temp);
+	}
 }
 
 SOP_Fluid::~SOP_Fluid() {}
@@ -196,15 +213,18 @@ SOP_Fluid::cookMySop(OP_Context &context)
 	float vorticity;
 	vorticity = VORTICITY_CONFINEMENT(now);
 
+	int tf;
+	tf = TIME_FRAME(now);
+
 	/*UT_String grammarFileUT;
 	evalString(grammarFileUT, "grammarFile", 0, now);
 	std::string grammarFile;
 	grammarFile = grammarFileUT.toStdString();*/
 
-	std::cout << "iteration " << ite << endl;
+	/*std::cout << "iteration " << ite << endl;
 	cout << "stiffnes " << stif << endl;
 	cout << "viscosity " << visc << endl;
-	cout << "vorticity " << vorticity << "\n" << endl;
+	cout << "vorticity " << vorticity << "\n" << endl;*/
 
 
 	///////////////////////////////////////////////////////////////////////////
@@ -228,7 +248,7 @@ SOP_Fluid::cookMySop(OP_Context &context)
 	/*std::vector<LSystem::Branch> branches = std::vector<LSystem::Branch>();
 	myplant.process(iterations, branches);*/
 
-	myFS->Run();
+	//myFS->Run();
 
 
 	///////////////////////////////////////////////////////////////////////////////////
@@ -283,9 +303,9 @@ SOP_Fluid::cookMySop(OP_Context &context)
 			// Also use GA_Offset ptoff = poly->getPointOffset()
 			// and gdp->setPos3(ptoff,YOUR_POSITION_VECTOR) to build geometry.
 
-			for (auto& f : myFS->fluidPs) {
-				glm::dvec3 scaledPos = f->pos;
-				scaledPos /= SPH_RADIUS;
+			for (auto& f : totalPos[tf]) {
+				glm::dvec3 scaledPos = f;
+				//scaledPos /= SPH_RADIUS;
 
 				//debug
 				//std::cout << "pos: " << scaledPos.x << " " << scaledPos.y << " " << scaledPos.z << std::endl;

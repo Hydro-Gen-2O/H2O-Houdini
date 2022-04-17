@@ -64,6 +64,7 @@ private:
 
     fpreal  VISCOSITY(fpreal t) { return evalFloat("viscosity", 0, t); }
     fpreal  VORTICITY_CONFINEMENT(fpreal t) { return evalFloat("vorticityConfinement", 0, t); }
+    exint TIME_FRAME(exint t) { return evalInt("timeFrame", 0, t); }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +77,7 @@ private:
     int		myCurrPoint;
     int		myTotalPoints;
     FluidSystem* myFS;
+    std::vector<std::vector<glm::dvec3>> totalPos; // all postions at all frame (0-60)
 };
 } // End HDK_Sample namespace
 
