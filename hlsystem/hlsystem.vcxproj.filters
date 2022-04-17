@@ -15,51 +15,30 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="LSystem.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="HydrogenPlugin.C">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="vec.cpp">
+    <ClCompile Include="FLUIDPlugin.C">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="JsonReader.cpp">
+    <ClCompile Include="fluid.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="jsoncpp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="FluidSystem.cpp">
+    <ClCompile Include="fluid_system.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="LSystem.h">
+    <ClInclude Include="FLUIDPlugin.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HydrogenPlugin.h">
+    <ClInclude Include="fluid.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="matrix.h">
+    <ClInclude Include="fluid_system.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="vec.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="JsonReader.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="json\json.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="json\json-forwards.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="FluidSystem.h">
+    <ClInclude Include="common_defs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

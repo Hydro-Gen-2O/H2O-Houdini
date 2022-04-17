@@ -28,9 +28,9 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{CAB016C6-D07C-4011-AB67-44526A60B102}</ProjectGuid>
-    <RootNamespace>hydrogen2o</RootNamespace>
+    <RootNamespace>hlsystem</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>Hydro_Gen2O</ProjectName>
+    <ProjectName>HydroGen-2O</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release64|Win32'" Label="Configuration">
@@ -112,7 +112,7 @@
     <IntDir>$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release64|x64'">
-    <OutDir>C:\Users\82435\Documents\Houdini19.0\dso</OutDir>
+    <OutDir>C:\Users\evans\Documents\Houdini19.0\dso</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
@@ -270,40 +270,27 @@
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <DataExecutionPrevention />
       <TargetMachine>MachineX64</TargetMachine>
-      <OutputFile>C:\PluginHoudini\$(ProjectName)_$(Configuration).dll</OutputFile>
+      <OutputFile>$(CUSTOM_DSO_PATH)\$(ProjectName).dll</OutputFile>
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="FluidSystem.cpp" />
-    <ClCompile Include="jsoncpp.cpp" />
-    <ClCompile Include="JsonReader.cpp" />
-    <ClCompile Include="LSystem.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release64|x64'">false</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="HydrogenPlugin.C">
+    <ClCompile Include="fluid.cpp" />
+    <ClCompile Include="fluid_system.cpp" />
+    <ClCompile Include="FLUIDPlugin.C">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release64|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="main.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release64|x64'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="vec.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="FluidSystem.h" />
-    <ClInclude Include="JsonReader.h" />
-    <ClInclude Include="json\json-forwards.h" />
-    <ClInclude Include="json\json.h" />
-    <ClInclude Include="LSystem.h">
+    <ClInclude Include="common_defs.h" />
+    <ClInclude Include="fluid.h" />
+    <ClInclude Include="fluid_system.h" />
+    <ClInclude Include="FLUIDPlugin.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release64|x64'">false</ExcludedFromBuild>
     </ClInclude>
-    <ClInclude Include="HydrogenPlugin.h">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release64|x64'">false</ExcludedFromBuild>
-    </ClInclude>
-    <ClInclude Include="matrix.h">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release64|x64'">false</ExcludedFromBuild>
-    </ClInclude>
-    <ClInclude Include="vec.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
