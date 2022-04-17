@@ -39,6 +39,8 @@
 		DWORD			clr;
 		glm::dvec3		vel;
 
+		glm::dvec3	tmp; // store tmp calcs
+
 		double density;	
 		double lambda;
 		glm::dvec3 deltaPos;

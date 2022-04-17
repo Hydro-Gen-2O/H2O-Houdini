@@ -288,7 +288,7 @@ SOP_Fluid::cookMySop(OP_Context &context)
 				scaledPos /= SPH_RADIUS;
 
 				//debug
-				std::cout << "pos: " << scaledPos.x << " " << scaledPos.y << " " << scaledPos.z << std::endl;
+				//std::cout << "pos: " << scaledPos.x << " " << scaledPos.y << " " << scaledPos.z << std::endl;
 
 				/*glTranslatef(scaledPos.x, scaledPos.y, scaledPos.z);
 				glScalef(SPH_RADIUS, SPH_RADIUS, SPH_RADIUS);
@@ -297,13 +297,13 @@ SOP_Fluid::cookMySop(OP_Context &context)
 
 				UT_Vector3 pos;
 				pos(0) = scaledPos.x;
-				pos(1) = scaledPos.y;
-				pos(2) = scaledPos.z;
+				pos(1) = scaledPos.z;
+				pos(2) = scaledPos.y;
 
 				UT_Vector3 posUp;
 				posUp(0) = scaledPos.x;
-				posUp(1) = scaledPos.y + 0.2;
-				posUp(2) = scaledPos.z;
+				posUp(1) = scaledPos.z + 0.2;
+				posUp(2) = scaledPos.y;
 
 				poly = GU_PrimPoly::build(gdp, 2, GU_POLY_CLOSED);
 				GA_Offset ptoffstart = poly->getPointOffset(0);
@@ -312,31 +312,6 @@ SOP_Fluid::cookMySop(OP_Context &context)
 				GA_Offset ptoffend = poly->getPointOffset(1);
 				gdp->setPos3(ptoffend, posUp);
 			}
-
-
-			/*for (int i = 0; i < branches.size(); i++)
-			{
-				UT_Vector3 posStart;
-				posStart(0) = branches.at(i).first[0];
-				posStart(1) = branches.at(i).first[2];
-				posStart(2) = branches.at(i).first[1];
-
-				UT_Vector3 posEnd;
-				posEnd(0) = branches.at(i).second[0];
-				posEnd(1) = branches.at(i).second[2];
-				posEnd(2) = branches.at(i).second[1];
-
-				cout << posStart[0] << " " << posStart[1] << " " << posStart[2] << endl;
-				cout << posEnd[0] << " " << posEnd[1] << " " << posEnd[2] << endl;
-
-				poly = GU_PrimPoly::build(gdp, 2, GU_POLY_CLOSED);
-
-				GA_Offset ptoffstart = poly->getPointOffset(0);
-				gdp->setPos3(ptoffstart, posStart);
-
-				GA_Offset ptoffend = poly->getPointOffset(1);
-				gdp->setPos3(ptoffend, posEnd);
-			}*/
 			////////////////////////////////////////////////////////////////////////////////////////////
 
 			// Highlight the star which we have just generated.  This routine

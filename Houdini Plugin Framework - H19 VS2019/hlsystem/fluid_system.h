@@ -29,33 +29,32 @@
 	
 	// Physical constants
 	#define GRAVITY glm::dvec3(0, 0, -9.8)
-	
+	#define GRAVITY_ON 1
+
 	// Tunable(ish) parameters
-	#define FLUID_ITERS 4
+	#define FLUID_ITERS 2
 	#define m_DT 0.0083
 	#define SPH_RADIUS 0.1
 	#define REST_DENSITY 6378.0
 	#define MAX_NEIGHBOR 50
-	
-	#define K_CORR 0.0001
-	#define VISC_CONST 0.001
+	#define RELAXATION 600.0
+
+	#define K_CORR 0.00001
+	#define VISC_CONST 0.01
+	#define VORT_CONST 0.0003;//0.0005;
 
 	// Vector params
 	#define SPH_VOLMIN glm::ivec3(-4, -4, 0)
 	#define SPH_VOLMAX glm::ivec3(4, 4, 10)
 	#define SPH_INITMIN	glm::ivec3(-2, -2, 3)
-	#define SPH_INITMAX	glm::ivec3(2, 2, 7)
+	#define SPH_INITMAX	glm::ivec3(2, 2, 9)
 
 	class FluidSystem {
 	public:
 		FluidSystem ();
-
-		void Draw(float* view_mat);
-
 		virtual void Run ();
 
 		void SPH_CreateExample(int n, int nmax);
-		void SPH_DrawDomain();
 	private:
 		glm::dvec3 scaledMin = glm::dvec3(SPH_VOLMIN) * SPH_RADIUS;
 		glm::dvec3 scaledMax = glm::dvec3(SPH_VOLMAX) * SPH_RADIUS;
