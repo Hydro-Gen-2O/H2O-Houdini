@@ -51,6 +51,8 @@ protected:
 				     return evalVariableValue(v, i, thread);
 				 }
 
+    void runSimulation(int frameNumber);
+
 private:
     /// The following list of accessors simplify evaluating the parameters
     /// of the SOP.
@@ -60,7 +62,7 @@ private:
 	// constantly update the cook function, these functions help you get the current value that the node has
 	// Example : To declare a function to fetch angle you need to do it this way 
     exint   CONSTARIANT_ITERATION(exint t) { return evalInt("constraintIteration", 0, t); }
-    fpreal  CONSTRAINT_STIFFNESS(fpreal t) { return evalFloat("constraintStiffness", 0, t); }
+    fpreal  ARTIFICIAL_PRESSURE(fpreal t) { return evalFloat("artificialPressure", 0, t); }
 
     fpreal  VISCOSITY(fpreal t) { return evalFloat("viscosity", 0, t); }
     fpreal  VORTICITY_CONFINEMENT(fpreal t) { return evalFloat("vorticityConfinement", 0, t); }
@@ -76,6 +78,10 @@ private:
 	// NOTE : You can declare local variables here like this  
     int		myCurrPoint;
     int		myTotalPoints;
+    int     oldIteration;
+    float   oldKCorr;
+    float   oldViscosity;
+    float   oldVorticity;
     FluidSystem* myFS;
     std::vector<std::vector<glm::dvec3>> totalPos; // all postions at all frame (0-60)
 };

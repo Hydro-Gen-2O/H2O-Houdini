@@ -22,6 +22,8 @@
 using namespace std;
 using namespace HDK_Sample;
 
+#define FRAME_RANGE 100
+
 //
 // Help is stored in a "wiki" style text file. 
 //
@@ -56,7 +58,7 @@ newSopOperator(OP_OperatorTable *table)
 //You need to declare your parameters here
 //Example to declare a variable for angle you can do like this :
 static PRM_Name		constraintIteration("constraintIteration", "Constraint Iteration");
-static PRM_Name		constraintStiffness("constraintStiffness", "Constraint Stiffness");
+static PRM_Name		artificialPressure("artificialPressure", "Artificial Pressure");
 static PRM_Name		viscosity("viscosity", "Viscosity");
 static PRM_Name		vorticityConfinement("vorticityConfinement", "Vorticity Confinement");
 static PRM_Name		timeFrame("timeFrame", "Time Frame");
@@ -76,18 +78,18 @@ static PRM_Name		timeFrame("timeFrame", "Time Frame");
 // PUT YOUR CODE HERE
 // You need to setup the initial/default values for your parameters here
 // For example : If you are declaring the inital value for the angle parameter
-static PRM_Default constraintIterationDefault(4);
-static PRM_Default constraintStiffnessDefault(0.1);
-static PRM_Default viscosityDefault(0.001);
-static PRM_Default vorticityConfinementDefault(0.001);
+static PRM_Default constraintIterationDefault(2);
+static PRM_Default artificialPressureDefault(0.0001);
+static PRM_Default viscosityDefault(0.01);
+static PRM_Default vorticityConfinementDefault(0.0003);
 static PRM_Default timeFrameDefault(0);
 
-static PRM_Range timeFrameRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, 60);
 
-
-
-
-
+static PRM_Range iterationRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 30);
+static PRM_Range tensileRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.01);
+static PRM_Range viscosityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.1);
+static PRM_Range vorticityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.001);
+static PRM_Range timeFrameRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, FRAME_RANGE);
 
 
 
@@ -98,10 +100,10 @@ SOP_Fluid::myTemplateList[] = {
 // PUT YOUR CODE HERE
 // You now need to fill this template with your parameter name and their default value
 // EXAMPLE : For the angle parameter this is how you should add into the template
-PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &constraintIteration, &constraintIterationDefault, 0),
-PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &constraintStiffness, &constraintStiffnessDefault, 0),
-PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0),
-PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0),
+PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &constraintIteration, &constraintIterationDefault, 0, &iterationRange),
+PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &artificialPressure, &artificialPressureDefault, 0, &tensileRange),
+PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0, &viscosityRange),
+PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0, &vorticityRange),
 PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &timeFrame, &timeFrameDefault, 0, &timeFrameRange),
 
 
@@ -115,14 +117,22 @@ PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &timeFrame, &timeFrameDef
 // Here's how we define local variables for the SOP.
 enum {
 	VAR_PT,		// Point number of the star
-	VAR_NPT	,	// Number of points in the star
-	VAR_FS  // my pointer to my fluid system
+	VAR_NPT,	// Number of points in the star
+	VAR_FS,  // my pointer to my fluid system
+	VAR_OI, //iteration
+	VAR_OK, //artificial pressure kCorr
+	VAR_OVISC, //viscosity
+	VAR_OVOR, //vorticity
 };
 
 CH_LocalVariable
 SOP_Fluid::myVariables[] = {
     { "PT",	VAR_PT, 0 },		// The table provides a mapping
     { "NPT",	VAR_NPT, 0 },		// from text string to integer token
+	{ "OI",	VAR_OI, 0 },
+	{ "OK",	VAR_OK, 0 },
+	{ "OVISC",	VAR_OVISC, 0 },
+	{ "OVOR",	VAR_OVOR, 0 },
 	{ "FS",	VAR_FS },
     { 0, 0, 0 },
 };
@@ -144,6 +154,18 @@ SOP_Fluid::evalVariableValue(fpreal &val, int index, int thread)
 	    case VAR_NPT:
 		val = (fpreal) myTotalPoints;
 		return true;
+		case VAR_OI:
+			val = (fpreal)oldIteration;
+			return true;
+		case VAR_OK:
+			val = (fpreal)oldKCorr;
+			return true;
+		case VAR_OVISC:
+			val = (fpreal)oldViscosity;
+			return true;
+		case VAR_OVOR:
+			val = (fpreal)oldVorticity;
+			return true;
 	    default:
 		/* do nothing */;
 	}
@@ -166,7 +188,18 @@ SOP_Fluid::SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op)
 	myFS->SPH_CreateExample(0, 0);
 
 	//for test
-	for (int i = 0; i <= 60; ++i)
+	runSimulation(FRAME_RANGE);
+	oldIteration = 2;
+	oldKCorr = 0.0001;
+	oldViscosity = 0.01;
+	oldVorticity = 0.0003;
+}
+
+void SOP_Fluid::runSimulation(int frameNumber)
+{
+	totalPos.clear();
+
+	for (int i = 0; i <= frameNumber; ++i)
 	{
 		myFS->Run();
 
@@ -204,8 +237,8 @@ SOP_Fluid::cookMySop(OP_Context &context)
 	int ite;
 	ite = CONSTARIANT_ITERATION(now);
 
-	float stif;
-	stif = CONSTRAINT_STIFFNESS(now);
+	float kCorr;
+	kCorr = ARTIFICIAL_PRESSURE(now);
 
 	float visc;
 	visc = VISCOSITY(now);
@@ -215,6 +248,18 @@ SOP_Fluid::cookMySop(OP_Context &context)
 
 	int tf;
 	tf = TIME_FRAME(now);
+
+	if (ite != oldIteration || kCorr != oldKCorr || visc != oldViscosity || vorticity != oldVorticity)
+	{
+		oldIteration = ite;
+		oldKCorr = kCorr;
+		oldViscosity = visc;
+		oldVorticity = vorticity;
+		myFS->setParameters(ite, visc, vorticity, kCorr);
+
+		myFS->SPH_CreateExample(0, 0);
+		runSimulation(FRAME_RANGE);
+	}
 
 	/*UT_String grammarFileUT;
 	evalString(grammarFileUT, "grammarFile", 0, now);

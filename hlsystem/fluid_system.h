@@ -32,16 +32,12 @@
 	#define GRAVITY_ON 1
 
 	// Tunable(ish) parameters
-	#define FLUID_ITERS 2
 	#define m_DT 0.0083
 	#define SPH_RADIUS 0.1
 	#define REST_DENSITY 6378.0
 	#define MAX_NEIGHBOR 50
 	#define RELAXATION 600.0
 
-	#define K_CORR 0.00001
-	#define VISC_CONST 0.01
-	#define VORT_CONST 0.0003;//0.0005;
 
 	// Vector params
 	#define SPH_VOLMIN glm::ivec3(-4, -4, 0)
@@ -55,6 +51,8 @@
 		virtual void Run ();
 
 		void SPH_CreateExample(int n, int nmax);
+		void setParameters(int ite, double visc, double vor, double tensile);
+		void cleanUp();
 	private:
 		glm::dvec3 scaledMin = glm::dvec3(SPH_VOLMIN) * SPH_RADIUS;
 		glm::dvec3 scaledMax = glm::dvec3(SPH_VOLMAX) * SPH_RADIUS;
@@ -84,5 +82,10 @@
 		// grid maps indexSpace To vector of fluid there
 		std::vector<std::vector<int>> grid;
 		std::vector<std::vector<int>> neighbors;
+
+		int myIteration;
+		double viscConst;
+		double vortConst;
+		double kCorr;
 	};
 #endif

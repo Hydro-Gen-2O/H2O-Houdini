@@ -26,8 +26,12 @@
 #include "common_defs.h"
 #include "fluid_system.h"
 
-FluidSystem::FluidSystem() {
-}
+FluidSystem::FluidSystem() :
+	myIteration(2),
+	viscConst(0.01),
+	vortConst(0.0003),
+	kCorr(0.0001)
+{}
 
 double FluidSystem::PolyKernel(double dist) {
 	if (dist > SPH_RADIUS || dist == 0) {
@@ -48,6 +52,30 @@ void FluidSystem::SpikyKernel(glm::dvec3& r) {
 	r *= (SPH_RADIUS - dist) * (SPH_RADIUS - dist) / dist;
 }
 
+void FluidSystem::setParameters(int ite, double visc, double vor, double tensile)
+{
+	myIteration = ite;
+	viscConst = visc;
+	vortConst = vor;
+	kCorr = tensile;
+}
+
+void FluidSystem::cleanUp()
+{
+	if (fluidPs.size() > 0)
+	{
+		fluidPs.clear();
+	}
+	if (grid.size() > 0)
+	{
+		grid.clear();
+	}
+	if (neighbors.size() > 0)
+	{
+		neighbors.clear();
+	}
+}
+
 void FluidSystem::SPH_CreateExample(int n, int nmax) {
 	//for (int x = SPH_INITMIN.x; x <= SPH_INITMAX.x; ++x) {
 	//for (int y = SPH_INITMIN.y; y <= SPH_INITMAX.y; ++y) {
@@ -56,6 +84,8 @@ void FluidSystem::SPH_CreateExample(int n, int nmax) {
 	//		glm::dvec3(x, y, z) * SPH_RADIUS * 0.5,
 	//		COLORA(0.5, 0.5, 0.6, 1)));
 	//}}}
+
+	cleanUp();
 
 	double ss = 0.5;
 	for (double x = SPH_INITMIN.x; x <= SPH_INITMAX.x; x += ss) {
@@ -97,7 +127,7 @@ int FluidSystem::GetGridIndex(const glm::ivec3& gridPos) {
 void FluidSystem::Run() {
 	PredictPositions();
 	FindNeighbors();
-	for (int _ = 0; _ < FLUID_ITERS; ++_) {
+	for (int _ = 0; _ < myIteration; ++_) {
 		ComputeDensity();
 		ComputeLambda();
 		ComputeCorrections();
@@ -219,7 +249,7 @@ void FluidSystem::ComputeCorrections() {
 			std::unique_ptr<Fluid>& pcurr = fluidPs.at(j);
 			//---------Calculate SCORR-----
 			double frac = PolyKernel(glm::length(p->predictPos - pcurr->predictPos)) / polyDen;
-			double sCorr = -K_CORR * frac * frac * frac * frac;
+			double sCorr = -kCorr * frac * frac * frac * frac;
 			//------------End SCORR calculation-------
 
 			// Spiky Kernel - modifies r by ref
@@ -273,7 +303,7 @@ void FluidSystem::Advance() {
 		}
 		eta *= glm::length(omega);
 
-		glm::dvec3 vortForce = glm::cross(glm::normalize(eta), omega) * VORT_CONST; // eqn 16
+		glm::dvec3 vortForce = glm::cross(glm::normalize(eta), omega) * vortConst; // eqn 16
 		p->vel += vortForce * m_DT;
 	}
 	// END VORTICITY CONFINEMENT
@@ -290,7 +320,7 @@ void FluidSystem::Advance() {
 	}
 
 	for (std::unique_ptr<Fluid>& p : fluidPs) {
-		p->vel += VISC_CONST * p->tmp * m_DT;
+		p->vel += viscConst * p->tmp * m_DT;
 	}
 	// END VISCOSITY
 }
