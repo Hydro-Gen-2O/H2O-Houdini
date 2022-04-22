@@ -11,6 +11,7 @@
 #include <OP/OP_Operator.h>
 #include <OP/OP_OperatorTable.h>
 
+#include <GU/GU_PrimSphere.h>
 
 #include <limits.h>
 #include "FLUIDPlugin.h"
@@ -268,12 +269,18 @@ SOP_Fluid::cookMySop(OP_Context &context)
 				glColor4f(RED(f->clr), GRN(f->clr), BLUE(f->clr), ALPH(f->clr));
 				drawSphere();*/
 
+
 				UT_Vector3 pos;
 				pos(0) = scaledPos.x;
 				pos(1) = scaledPos.z;
 				pos(2) = scaledPos.y;
 
-				UT_Vector3 posUp;
+				GU_PrimSphereParms sphere(gdp);
+				sphere.xform.scale(SPH_RADIUS, SPH_RADIUS, SPH_RADIUS);
+				sphere.xform.translate(pos);
+				GU_PrimSphere::build(sphere, GEO_PRIMSPHERE);
+
+				/*UT_Vector3 posUp;
 				posUp(0) = scaledPos.x;
 				posUp(1) = scaledPos.z + 0.2;
 				posUp(2) = scaledPos.y;
@@ -283,7 +290,7 @@ SOP_Fluid::cookMySop(OP_Context &context)
 				gdp->setPos3(ptoffstart, pos);
 
 				GA_Offset ptoffend = poly->getPointOffset(1);
-				gdp->setPos3(ptoffend, posUp);
+				gdp->setPos3(ptoffend, posUp);*/
 			}
 			// Highlight the star which we have just generated.  This routine
 			// call clears any currently highlighted geometry, and then it
