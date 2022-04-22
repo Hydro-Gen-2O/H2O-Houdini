@@ -12,6 +12,8 @@
 #include <OP/OP_OperatorTable.h>
 
 #include <GU/GU_PrimSphere.h>
+#include <CH/CH_Manager.h>
+#include <OP/OP_Director.h>
 
 #include <limits.h>
 #include "FLUIDPlugin.h"
@@ -42,7 +44,7 @@ static PRM_Name		constraintIteration("constraintIteration", "Constraint Iteratio
 static PRM_Name		artificialPressure("artificialPressure", "Artificial Pressure");
 static PRM_Name		viscosity("viscosity", "Viscosity");
 static PRM_Name		vorticityConfinement("vorticityConfinement", "Vorticity Confinement");
-static PRM_Name		timeFrame("timeFrame", "Time Frame");
+static PRM_Name		startFrame("startFrame", "Start Frame");
 //				     ^^^^^^^^    ^^^^^^^^^^^^^^^
 //				     internal    descriptive version
 
@@ -51,13 +53,13 @@ static PRM_Default constraintIterationDefault(2);
 static PRM_Default artificialPressureDefault(0.0001);
 static PRM_Default viscosityDefault(0.01);
 static PRM_Default vorticityConfinementDefault(0.0003);
-static PRM_Default timeFrameDefault(0);
+static PRM_Default startFrameDefault(1);
 
 static PRM_Range iterationRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 30);
 static PRM_Range tensileRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.01);
 static PRM_Range viscosityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.1);
 static PRM_Range vorticityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.001);
-static PRM_Range timeFrameRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, FRAME_RANGE);
+static PRM_Range startFrameRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, FRAME_RANGE);
 
 PRM_Template
 SOP_Fluid::myTemplateList[] = {
@@ -66,7 +68,7 @@ PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &constraintIteration, &co
 PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &artificialPressure, &artificialPressureDefault, 0, &tensileRange),
 PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0, &viscosityRange),
 PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0, &vorticityRange),
-PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &timeFrame, &timeFrameDefault, 0, &timeFrameRange),
+PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &startFrame, &startFrameDefault, 0, &startFrameRange),
     PRM_Template()
 };
 
@@ -79,6 +81,7 @@ enum {
 	VAR_OK, //artificial pressure kCorr
 	VAR_OVISC, //viscosity
 	VAR_OVOR, //vorticity
+	VAR_SF, //startFrame
 };
 
 CH_LocalVariable
@@ -89,6 +92,7 @@ SOP_Fluid::myVariables[] = {
 	{ "OK",	VAR_OK, 0 },
 	{ "OVISC",	VAR_OVISC, 0 },
 	{ "OVOR",	VAR_OVOR, 0 },
+	{ "SF",	VAR_SF, 0 }, 
 	{ "FS",	VAR_FS },
     { 0, 0, 0 },
 };
@@ -118,6 +122,9 @@ bool SOP_Fluid::evalVariableValue(fpreal &val, int index, int thread) {
 		case VAR_OVOR:
 			val = (fpreal)oldVorticity;
 			return true;
+		case VAR_SF:
+			val = (fpreal)myStartFrame;
+			return true;
 	    default:
 		/* do nothing */;
 	}
@@ -137,26 +144,52 @@ SOP_Fluid::SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op)
 	myFS->SPH_CreateExample(0, 0);
 
 	//for test
-	runSimulation(FRAME_RANGE);
+	runSimulation(true,FRAME_RANGE);
 	oldIteration = 2;
 	oldKCorr = 0.0001;
 	oldViscosity = 0.01;
 	oldVorticity = 0.0003;
 }
 
-void SOP_Fluid::runSimulation(int frameNumber) {
-	totalPos.clear();
-	for (int i = 0; i <= frameNumber; ++i)
+void SOP_Fluid::runSimulation(bool reRun, int frameNumber) {
+	if (reRun)
 	{
-		myFS->Run();
+		totalPos.clear();
+		for (int i = 0; i <= (frameNumber+FRAME_RANGE); ++i)
+		{
+			myFS->Run();
 
-		std::vector<glm::dvec3> temp;
-		for (auto& f : myFS->fluidPs) {
-			glm::dvec3 scaledPos = f->pos;
-			scaledPos /= SPH_RADIUS;
-			temp.push_back(scaledPos);
+			std::vector<glm::dvec3> temp;
+			for (auto& f : myFS->fluidPs) {
+				glm::dvec3 scaledPos = f->pos;
+				scaledPos /= SPH_RADIUS;
+				temp.push_back(scaledPos);
+			}
+			totalPos.push_back(temp);
 		}
-		totalPos.push_back(temp);
+	}
+	else
+	{
+		if (frameNumber < totalPos.size())
+		{
+			//do nothing
+		}
+		else
+		{
+			int moreFrame = frameNumber - totalPos.size();
+			for (int i = 0; i <= (moreFrame + FRAME_RANGE); ++i)
+			{
+				myFS->Run();
+
+				std::vector<glm::dvec3> temp;
+				for (auto& f : myFS->fluidPs) {
+					glm::dvec3 scaledPos = f->pos;
+					scaledPos /= SPH_RADIUS;
+					temp.push_back(scaledPos);
+				}
+				totalPos.push_back(temp);
+			}
+		}
 	}
 }
 
@@ -170,7 +203,17 @@ OP_ERROR
 SOP_Fluid::cookMySop(OP_Context &context)
 {
 	fpreal now = context.getTime();
-	//FluidSystem myplant;
+
+	// Now, indicate that we are time dependent (i.e. have to cook every
+	// time the current frame changes).
+	OP_Node::flags().setTimeDep(true);
+
+	// Channel manager has time info for us
+	CH_Manager* chman = OPgetDirector()->getChannelManager();
+	// This is the frame that we're cooking at...
+	fpreal currframe = chman->getSample(now);
+	//std::cout << currframe << std::endl; //debug
+
 
 	int ite;
 	ite = CONSTRAINT_ITERATION(now);
@@ -184,8 +227,16 @@ SOP_Fluid::cookMySop(OP_Context &context)
 	float vorticity;
 	vorticity = VORTICITY_CONFINEMENT(now);
 
-	int tf;
-	tf = TIME_FRAME(now);
+	int sf;
+	sf = START_FRAME(now);
+
+	myStartFrame = sf;
+	int simulationFrame = currframe - myStartFrame;
+	if (simulationFrame < 0)
+	{
+		simulationFrame = 0;
+	}
+
 
 	if (ite != oldIteration || kCorr != oldKCorr || visc != oldViscosity || vorticity != oldVorticity)
 	{
@@ -196,8 +247,13 @@ SOP_Fluid::cookMySop(OP_Context &context)
 		myFS->setParameters(ite, visc, vorticity, kCorr);
 
 		myFS->SPH_CreateExample(0, 0);
-		runSimulation(FRAME_RANGE);
+		runSimulation(true,simulationFrame);
 	}
+	else
+	{
+		runSimulation(false, simulationFrame);
+	}
+
 
 	/*std::cout << "iteration " << ite << endl;
 	cout << "stiffnes " << stif << endl;
@@ -257,7 +313,8 @@ SOP_Fluid::cookMySop(OP_Context &context)
 			// Also use GA_Offset ptoff = poly->getPointOffset()
 			// and gdp->setPos3(ptoff,YOUR_POSITION_VECTOR) to build geometry.
 
-			for (auto& f : totalPos[tf]) {
+
+			for (auto& f : totalPos[simulationFrame]) {
 				glm::dvec3 scaledPos = f;
 				//scaledPos /= SPH_RADIUS;
 
