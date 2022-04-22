@@ -34,7 +34,11 @@ protected:
         return evalVariableValue(v, i, thread);
     }
 
-    void runSimulation(int frameNumber);
+
+    // if reRun is true, clear out all points and rerun whole simulation up to frameNumber 
+    // if false, just run up to frameNumber (with a buffer range)
+    void runSimulation(bool reRun, int frameNumber);
+
 private:
     /// The following list of accessors simplify evaluating the parameters of the SOP.
 
@@ -44,7 +48,7 @@ private:
 
     fpreal VISCOSITY(fpreal t) { return evalFloat("viscosity", 0, t); }
     fpreal VORTICITY_CONFINEMENT(fpreal t) { return evalFloat("vorticityConfinement", 0, t); }
-    exint TIME_FRAME(exint t) { return evalInt("timeFrame", 0, t); }
+    exint START_FRAME(exint t) { return evalInt("startFrame", 0, t); }
 
     /// Member variables are stored in the actual SOP, not with the geometry
     /// In this case these are just used to transfer data to the local 
@@ -53,6 +57,7 @@ private:
     int		myCurrPoint;
     int		myTotalPoints;
     int     oldIteration;
+    int     myStartFrame;
     float   oldKCorr;
     float   oldViscosity;
     float   oldVorticity;

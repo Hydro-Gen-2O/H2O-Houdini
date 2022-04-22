@@ -11,6 +11,11 @@
 #include <PRM/PRM_SpareData.h>
 #include <OP/OP_Operator.h>
 #include <OP/OP_OperatorTable.h>
+
+#include <GU/GU_PrimSphere.h>
+#include <CH/CH_Manager.h>
+#include <OP/OP_Director.h>
+
 #include <limits.h>
 #include "FLUIDPlugin.h"
 
@@ -39,30 +44,29 @@ static PRM_Name		constraintIteration("constraintIteration", "Constraint Iteratio
 static PRM_Name		artificialPressure("artificialPressure", "Artificial Pressure");
 static PRM_Name		viscosity("viscosity", "Viscosity");
 static PRM_Name		vorticityConfinement("vorticityConfinement", "Vorticity Confinement");
-static PRM_Name		timeFrame("timeFrame", "Time Frame");
-//								^^^^^^^^    ^^^^^^^^^^^^^^^
-//								internal    descriptive version
+static PRM_Name		startFrame("startFrame", "Start Frame");
+//				     ^^^^^^^^    ^^^^^^^^^^^^^^^
+//				     internal    descriptive version
 
 // initial/default values for your parameters here
 static PRM_Default constraintIterationDefault(2);
 static PRM_Default artificialPressureDefault(0.0001);
 static PRM_Default viscosityDefault(0.01);
 static PRM_Default vorticityConfinementDefault(0.0003);
-static PRM_Default timeFrameDefault(0);
+static PRM_Default startFrameDefault(1);
 
 static PRM_Range iterationRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 30);
 static PRM_Range tensileRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.01);
 static PRM_Range viscosityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.1);
 static PRM_Range vorticityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.001);
-static PRM_Range timeFrameRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, FRAME_RANGE);
+static PRM_Range startFrameRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, FRAME_RANGE);
 
 // default vals
-PRM_Template SOP_Fluid::myTemplateList[] = {
-	PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &constraintIteration, &constraintIterationDefault, 0, &iterationRange),
-	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &artificialPressure, &artificialPressureDefault, 0, &tensileRange),
-	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0, &viscosityRange),
-	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0, &vorticityRange),
-	PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &timeFrame, &timeFrameDefault, 0, &timeFrameRange),
+PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &constraintIteration, &constraintIterationDefault, 0, &iterationRange),
+PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &artificialPressure, &artificialPressureDefault, 0, &tensileRange),
+PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0, &viscosityRange),
+PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0, &vorticityRange),
+PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &startFrame, &startFrameDefault, 0, &startFrameRange),
     PRM_Template()
 };
 
@@ -75,6 +79,7 @@ enum {
 	VAR_OK, //artificial pressure kCorr
 	VAR_OVISC, //viscosity
 	VAR_OVOR, //vorticity
+	VAR_SF, //startFrame
 };
 
 CH_LocalVariable
@@ -85,6 +90,7 @@ SOP_Fluid::myVariables[] = {
 	{ "OK",	VAR_OK, 0 },
 	{ "OVISC",	VAR_OVISC, 0 },
 	{ "OVOR",	VAR_OVOR, 0 },
+	{ "SF",	VAR_SF, 0 }, 
 	{ "FS",	VAR_FS },
     { 0, 0, 0 },
 };
@@ -114,6 +120,9 @@ bool SOP_Fluid::evalVariableValue(fpreal &val, int index, int thread) {
 		case VAR_OVOR:
 			val = (fpreal)oldVorticity;
 			return true;
+		case VAR_SF:
+			val = (fpreal)myStartFrame;
+			return true;
 	    default:
 		/* do nothing */;
 	}
@@ -133,26 +142,52 @@ SOP_Fluid::SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op)
 	myFS->SPH_CreateExample(std::vector<glm::dvec3>());
 
 	//for test
-	runSimulation(FRAME_RANGE);
+	runSimulation(true,FRAME_RANGE);
 	oldIteration = 2;
 	oldKCorr = 0.0001;
 	oldViscosity = 0.01;
 	oldVorticity = 0.0003;
 }
 
-void SOP_Fluid::runSimulation(int frameNumber) {
-	totalPos.clear();
-	for (int i = 0; i <= frameNumber; ++i)
+void SOP_Fluid::runSimulation(bool reRun, int frameNumber) {
+	if (reRun)
 	{
-		myFS->Run();
+		totalPos.clear();
+		for (int i = 0; i <= (frameNumber+FRAME_RANGE); ++i)
+		{
+			myFS->Run();
 
-		std::vector<glm::dvec3> temp;
-		for (auto& f : myFS->fluidPs) {
-			glm::dvec3 scaledPos = f->pos;
-			scaledPos /= SPH_RADIUS;
-			temp.push_back(scaledPos);
+			std::vector<glm::dvec3> temp;
+			for (auto& f : myFS->fluidPs) {
+				glm::dvec3 scaledPos = f->pos;
+				scaledPos /= SPH_RADIUS;
+				temp.push_back(scaledPos);
+			}
+			totalPos.push_back(temp);
 		}
-		totalPos.push_back(temp);
+	}
+	else
+	{
+		if (frameNumber < totalPos.size())
+		{
+			//do nothing
+		}
+		else
+		{
+			int moreFrame = frameNumber - totalPos.size();
+			for (int i = 0; i <= (moreFrame + FRAME_RANGE); ++i)
+			{
+				myFS->Run();
+
+				std::vector<glm::dvec3> temp;
+				for (auto& f : myFS->fluidPs) {
+					glm::dvec3 scaledPos = f->pos;
+					scaledPos /= SPH_RADIUS;
+					temp.push_back(scaledPos);
+				}
+				totalPos.push_back(temp);
+			}
+		}
 	}
 }
 
@@ -169,6 +204,17 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	duplicateSource(0, context); // copy from input geometry to sop's own gdp
 
 	fpreal now = context.getTime();
+
+	// Now, indicate that we are time dependent (i.e. have to cook every
+	// time the current frame changes).
+	OP_Node::flags().setTimeDep(true);
+
+	// Channel manager has time info for us
+	CH_Manager* chman = OPgetDirector()->getChannelManager();
+	// This is the frame that we're cooking at...
+	fpreal currframe = chman->getSample(now);
+	//std::cout << currframe << std::endl; //debug
+
 
 	// 1st connected input to node
 	GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context)); 
@@ -201,6 +247,16 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	float visc = VISCOSITY(now);
 	float vorticity = VORTICITY_CONFINEMENT(now);
 	int tf = TIME_FRAME(now);
+	int sf;
+	sf = START_FRAME(now);
+
+	myStartFrame = sf;
+	int simulationFrame = currframe - myStartFrame;
+	if (simulationFrame < 0)
+	{
+		simulationFrame = 0;
+	}
+
 
 	if (ite != oldIteration || kCorr != oldKCorr || visc != oldViscosity || vorticity != oldVorticity) {
 		oldIteration = ite;
@@ -214,9 +270,14 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		//hou.ui().displayMessage(glm::to_string(largest).c_str());
 
 		myFS->SPH_CreateExample(posn);
-		//myFS->SPH_CreateExample(0, 0, smallest, largest);
-		runSimulation(FRAME_RANGE);
+		runSimulation(true,simulationFrame);
 	}
+	else
+	{
+		runSimulation(false, simulationFrame);
+	}
+
+
 	/*std::cout << "iteration " << ite << endl;
 	cout << "stiffnes " << stif << endl;
 	cout << "viscosity " << visc << endl;
@@ -254,18 +315,49 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		// Start the interrupt server
 		if (boss->opStart("Building Fluid"))
 		{
-			for (auto& f : totalPos[tf]) {
+			// PUT YOUR CODE HERE
+			// Build a polygon
+			// You need to build your cylinders inside Houdini from here
+			// TIPS:
+			// Use GU_PrimPoly poly = GU_PrimPoly::build(see what values it can take)
+			// Also use GA_Offset ptoff = poly->getPointOffset()
+			// and gdp->setPos3(ptoff,YOUR_POSITION_VECTOR) to build geometry.
+
+
+			for (auto& f : totalPos[simulationFrame]) {
 				glm::dvec3 scaledPos = f;
 				//scaledPos /= SPH_RADIUS;
 
 				//std::cout << "pos: " << scaledPos.x << " " << scaledPos.y << " " << scaledPos.z << std::endl;
+
+				/*glTranslatef(scaledPos.x, scaledPos.y, scaledPos.z);
+				glScalef(SPH_RADIUS, SPH_RADIUS, SPH_RADIUS);
+				glColor4f(RED(f->clr), GRN(f->clr), BLUE(f->clr), ALPH(f->clr));
+				drawSphere();*/
+
+
+				UT_Vector3 pos;
+				pos(0) = scaledPos.x;
+				pos(1) = scaledPos.z;
+				pos(2) = scaledPos.y;
+
+				GU_PrimSphereParms sphere(gdp);
+				sphere.xform.scale(SPH_RADIUS, SPH_RADIUS, SPH_RADIUS);
+				sphere.xform.translate(pos);
+				GU_PrimSphere::build(sphere, GEO_PRIMSPHERE);
+
+				/*UT_Vector3 posUp;
+				posUp(0) = scaledPos.x;
+				posUp(1) = scaledPos.z + 0.2;
+				posUp(2) = scaledPos.y;
+
 				poly = GU_PrimPoly::build(gdp, 2, GU_POLY_CLOSED);
 				GA_Offset ptoffstart = poly->getPointOffset(0);
 				gdp->setPos3(ptoffstart, UT_Vector3(scaledPos.x, scaledPos.z, scaledPos.y));
 
 				// arbitrary magic number 0.2, length of "line" represenitng fluid particle
 				GA_Offset ptoffend = poly->getPointOffset(1);
-				gdp->setPos3(ptoffend, UT_Vector3(scaledPos.x, scaledPos.z + 0.2, scaledPos.y));
+				gdp->setPos3(ptoffend, posUp);*/
 			}
 			// Highlight the star which we have just generated.  This routine
 			// call clears any currently highlighted geometry, and then it
