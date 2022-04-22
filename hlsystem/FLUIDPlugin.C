@@ -4,6 +4,7 @@
 #include <UT/UT_Math.h>
 #include <UT/UT_Interrupt.h>
 #include <GU/GU_Detail.h>
+#include <GA/GA_Primitive.h>
 #include <GU/GU_PrimPoly.h>
 #include <CH/CH_LocalVariable.h>
 #include <PRM/PRM_Include.h>
@@ -129,7 +130,7 @@ SOP_Fluid::SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op)
 	: SOP_Node(net, name, op) {
     myCurrPoint = -1;	// To prevent garbage values from being returned
 	myFS = new FluidSystem();
-	myFS->SPH_CreateExample(0, 0, SPH_INITMIN, SPH_INITMAX);
+	myFS->SPH_CreateExample(std::vector<glm::dvec3>());
 
 	//for test
 	runSimulation(FRAME_RANGE);
@@ -165,69 +166,41 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	if (lockInput(0, context) >= UT_ERROR_ABORT) { // check for 1 input (presumably geom)
 		return error();
 	}
-
 	duplicateSource(0, context); // copy from input geometry to sop's own gdp
 
 	fpreal now = context.getTime();
 
-	GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context)); // ptr to geometry from first input
-	GEO_Primitive* fluid_prim = fluid_gdp->getGEOPrimitive(fluid_gdp->primitiveOffset(0));
-	// check fluid geometry type? not sure what the differences are
-	//https://www.sidefx.com/docs/hdk/_g_a___primitive_family_mask_8h.html
-	// think family_face is corresponding ot geometry.
-	if (!fluid_prim || fluid_prim->getTypeDef().getFamilyMask() != GA_FAMILY_FACE) {
+	// 1st connected input to node
+	GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context)); 
+
+	//glm::dvec3 smallest = glm::dvec3(99.0); // myabe just take the smallest?
+	//glm::dvec3 largest = glm::dvec3(-99.0);
+	
+	std::vector<glm::dvec3> posn;
+
+	//check points vector not too large, exit
+	int npts = fluid_gdp->getPointRange().getEntries();
+	std::cout << npts << std::endl;
+	if (npts > 1000) {
 		return error();
 	}
 
-	//FluidSystem myplant;
+	for (GA_Iterator it(fluid_gdp->getPointRange()); !it.atEnd(); ++it) {
+		UT_Vector3 pos = gdp->getPos3(it.getOffset());
 
+		//std::cout << "In pointRange loop, off " << it.getOffset() << std::endl;
+		//std::cout << pos[0] << " " << pos[1] << " " << pos[2] << std::endl;
+		posn.push_back(glm::dvec3(pos[0], pos[2], pos[1]));
+	}
+
+	//FluidSystem myplant;
+	
 	// update parameters
 	int ite = CONSTRAINT_ITERATION(now);
 	float kCorr = ARTIFICIAL_PRESSURE(now);
 	float visc = VISCOSITY(now);
 	float vorticity = VORTICITY_CONFINEMENT(now);
 	int tf = TIME_FRAME(now);
-
-	
-	// below is some nonsense testug
-	// could cast this earlier?
-	GEO_PrimPoly* geo_prim = static_cast<GEO_PrimPoly*>(fluid_prim);
-	int npts = geo_prim->getPointRange().getEntries();
-
-	GA_ROHandleV3 gdp_ps = fluid_gdp->getP();
-	// not clear what exactlyt he ps are? docuentation not clear
-	glm::dvec3 smallest = glm::dvec3(0.0); // myabe just take the smallest?
-	glm::dvec3 largest = glm::dvec3(0.0);
-	for (GA_Iterator it(geo_prim->getPointRange()); !it.atEnd(); it.advance()) {
-		GA_Offset ptof = it.getOffset();
-		UT_Vector3 pVec = gdp_ps.get(ptof);
-		if (pVec[0] < smallest.x) {
-			smallest.x = pVec[0];
-		}
-		if (pVec[1] < smallest.z) { //flip
-			smallest.z = pVec[1];
-		}
-		if (pVec[2] < smallest.y) {
-			smallest.y = pVec[2];
-		}
-
-		if (pVec[0] > largest.x) {
-			largest.x = pVec[0];
-		}
-		if (pVec[1] > largest.z) { //flip
-			largest.z = pVec[1];
-		}
-		if (pVec[2] > largest.y) {
-			largest.y = pVec[2];
-		}
-	}
-
-	//GA_Offset start = geo_prim->getPointOffset(0);
-	//GA_Offset end = geo_prim->getPointOffset(npts - 1);
-	//UT_Vector3 startP = gdp_ps.get(start);
-	//UT_Vector3 endP = gdp_ps.get(end);
-	// end is some nonsense test
-
 
 	if (ite != oldIteration || kCorr != oldKCorr || visc != oldViscosity || vorticity != oldVorticity) {
 		oldIteration = ite;
@@ -236,11 +209,12 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		oldVorticity = vorticity;
 		myFS->setParameters(ite, visc, vorticity, kCorr);
 		// use this scuffed stuff to debug i guess
-		HOM_Module& hou = HOM();
-		hou.ui().displayMessage(glm::to_string(smallest).c_str());
-		hou.ui().displayMessage(glm::to_string(largest).c_str());
+		//HOM_Module& hou = HOM();
+		//hou.ui().displayMessage(glm::to_string(smallest).c_str());
+		//hou.ui().displayMessage(glm::to_string(largest).c_str());
 
-		myFS->SPH_CreateExample(0, 0, smallest, largest);
+		myFS->SPH_CreateExample(posn);
+		//myFS->SPH_CreateExample(0, 0, smallest, largest);
 		runSimulation(FRAME_RANGE);
 	}
 	/*std::cout << "iteration " << ite << endl;
@@ -303,6 +277,8 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		boss->opEnd();
     }
     myCurrPoint = -1;
+
+
     return error();
 }
 
