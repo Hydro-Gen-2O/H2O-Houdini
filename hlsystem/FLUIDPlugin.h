@@ -5,7 +5,6 @@
 #include <SOP/SOP_Node.h>
 #include "fluid_system.h"
 
-namespace HDK_Sample {
 class SOP_Fluid : public SOP_Node {
 public:
     static OP_Node *myConstructor(OP_Network*, const char *name, OP_Operator *op);
@@ -20,30 +19,22 @@ protected:
     virtual ~SOP_Fluid();
 
     /// Disable parameters according to other parameters.
-    virtual unsigned		 disableParms();
+    virtual unsigned disableParms();
 
     /// cookMySop does the actual work of the SOP computing
-    virtual OP_ERROR		 cookMySop(OP_Context &context);
+    virtual OP_ERROR cookMySop(OP_Context &context);
 
     /// This function is used to lookup local variables that you have
     /// defined specific to your SOP.
-    virtual bool		 evalVariableValue(
-				    fpreal &val,
-				    int index,
-				    int thread);
+    virtual bool evalVariableValue(fpreal &val, int index, int thread);
 
     // Add virtual overload that delegates to the super class to avoid
     // shadow warnings.
-    virtual bool evalVariableValue(
-				    UT_String &v,
-				    int i,
-				    int thread)
-				 {
-				     return evalVariableValue(v, i, thread);
-				 }
+    virtual bool evalVariableValue(UT_String &v, int i, int thread) {
+        return evalVariableValue(v, i, thread);
+    }
 
     void runSimulation(int frameNumber);
-
 private:
     /// The following list of accessors simplify evaluating the parameters of the SOP.
 
@@ -59,8 +50,6 @@ private:
     /// In this case these are just used to transfer data to the local 
     /// variable callback.
     /// Another use for local data is a cache to store expensive calculations.
-
-	// NOTE : You can declare local variables here like this  
     int		myCurrPoint;
     int		myTotalPoints;
     int     oldIteration;
@@ -70,5 +59,4 @@ private:
     FluidSystem* myFS;
     std::vector<std::vector<glm::dvec3>> totalPos; // all postions at all frame (0-60)
 };
-} // End HDK_Sample namespace
 #endif

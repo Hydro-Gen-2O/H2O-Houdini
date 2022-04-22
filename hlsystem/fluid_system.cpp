@@ -76,21 +76,13 @@ void FluidSystem::cleanUp()
 	}
 }
 
-void FluidSystem::SPH_CreateExample(int n, int nmax) {
-	//for (int x = SPH_INITMIN.x; x <= SPH_INITMAX.x; ++x) {
-	//for (int y = SPH_INITMIN.y; y <= SPH_INITMAX.y; ++y) {
-	//for (int z = SPH_INITMIN.z; z <= SPH_INITMAX.z; ++z) {
-	//	fluidPs.push_back(std::make_unique<Fluid>(
-	//		glm::dvec3(x, y, z) * SPH_RADIUS * 0.5,
-	//		COLORA(0.5, 0.5, 0.6, 1)));
-	//}}}
-
+void FluidSystem::SPH_CreateExample(int n, int nmax, glm::dvec3 start, glm::dvec3 end) {
 	cleanUp();
 
 	double ss = 0.5;
-	for (double x = SPH_INITMIN.x; x <= SPH_INITMAX.x; x += ss) {
-		for (double y = SPH_INITMIN.y; y <= SPH_INITMAX.y; y += ss) {
-			for (double z = SPH_INITMIN.z; z <= SPH_INITMAX.z; z += ss) {
+	for (double x = start.x; x <= end.x; x += ss) {
+		for (double y = start.y; y <= end.y; y += ss) {
+			for (double z = start.z; z <= end.z; z += ss) {
 				fluidPs.push_back(std::make_unique<Fluid>(
 					glm::dvec3(x, y, z) * SPH_RADIUS,
 					COLORA(0.5, 0.5, 0.6, 1)));

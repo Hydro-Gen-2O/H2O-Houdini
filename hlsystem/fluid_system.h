@@ -50,7 +50,7 @@
 		FluidSystem ();
 		virtual void Run ();
 
-		void SPH_CreateExample(int n, int nmax);
+		void SPH_CreateExample(int n, int nmax, glm::dvec3 start, glm::dvec3 end);
 		void setParameters(int ite, double visc, double vor, double tensile);
 		void cleanUp();
 	private:
