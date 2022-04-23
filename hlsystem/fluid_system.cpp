@@ -23,7 +23,6 @@
 #include <glm/gtx/norm.hpp>
 #include <glm/gtx/string_cast.hpp>
 
-#include "common_defs.h"
 #include "fluid_system.h"
 
 FluidSystem::FluidSystem() :
@@ -81,9 +80,7 @@ void FluidSystem::SPH_CreateExample(std::vector<glm::dvec3> p) {
 	cleanUp(); 
 	
 	for (auto& pt : p) {
-		fluidPs.push_back(std::make_unique<Fluid>(
-			pt * SPH_RADIUS,
-			COLORA(0.5, 0.5, 0.6, 1)));
+		fluidPs.push_back(std::make_unique<Fluid>(pt * SPH_RADIUS));
 	}
 
 	//double ss = 0.5;
@@ -105,17 +102,11 @@ void FluidSystem::SPH_CreateExample(std::vector<glm::dvec3> p) {
 	}
 
 	for (int i = 0; i < fluidPs.size(); ++i) {
-		fluidPs.at(i)->clr = COLORA((double)i / fluidPs.size(), 0.5, 0.5, 1);
 		neighbors.push_back(std::vector<int>());
 	}
 }
 
 glm::ivec3 FluidSystem::GetGridPos(const glm::dvec3& pos) {
-	//return glm::ivec3(pos) - SPH_VOLMIN;
-	// doing above basically returns the same "grid pos", so the program will think every pt is in the same grid position and check every point against every point
-
-	//std::cout << "compare: " << glm::to_string(glm::ivec3(pos) - SPH_VOLMIN) << ", "
-	//	<< glm::to_string(glm::ivec3(pos / SPH_RADIUS) - SPH_VOLMIN) << std::endl;
 	return glm::ivec3(pos / SPH_RADIUS) - SPH_VOLMIN;
 }
 

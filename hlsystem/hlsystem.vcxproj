@@ -280,12 +280,8 @@
     <ClCompile Include="FLUIDPlugin.C">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release64|x64'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="main.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release64|x64'">false</ExcludedFromBuild>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="common_defs.h" />
     <ClInclude Include="fluid.h" />
     <ClInclude Include="fluid_system.h" />
     <ClInclude Include="FLUIDPlugin.h">

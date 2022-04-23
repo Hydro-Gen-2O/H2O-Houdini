@@ -40,8 +40,9 @@
 
 
 	// Vector params
-	#define SPH_VOLMIN glm::ivec3(-4, -4, 0)
-	#define SPH_VOLMAX glm::ivec3(4, 4, 10)
+	#define SPH_VOLMIN glm::ivec3(-10, -10, 0)
+	#define SPH_VOLMAX glm::ivec3(10, 10, 10)
+
 	#define SPH_INITMIN	glm::ivec3(-2, -2, 3)
 	#define SPH_INITMAX	glm::ivec3(2, 2, 9)
 

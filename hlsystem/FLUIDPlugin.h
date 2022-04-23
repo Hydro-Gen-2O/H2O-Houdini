@@ -24,24 +24,11 @@ protected:
     /// cookMySop does the actual work of the SOP computing
     virtual OP_ERROR cookMySop(OP_Context &context);
 
-    /// This function is used to lookup local variables that you have
-    /// defined specific to your SOP.
-    virtual bool evalVariableValue(fpreal &val, int index, int thread);
-
-    // Add virtual overload that delegates to the super class to avoid
-    // shadow warnings.
-    virtual bool evalVariableValue(UT_String &v, int i, int thread) {
-        return evalVariableValue(v, i, thread);
-    }
-
-
     // if reRun is true, clear out all points and rerun whole simulation up to frameNumber 
     // if false, just run up to frameNumber (with a buffer range)
     void runSimulation(bool reRun, int frameNumber);
 
 private:
-    /// The following list of accessors simplify evaluating the parameters of the SOP.
-
 	// functions to constantly update the cook function, get the current value that the node has
     exint CONSTRAINT_ITERATION(exint t) { return evalInt("constraintIteration", 0, t); }
     fpreal ARTIFICIAL_PRESSURE(fpreal t) { return evalFloat("artificialPressure", 0, t); }
@@ -50,12 +37,6 @@ private:
     fpreal VORTICITY_CONFINEMENT(fpreal t) { return evalFloat("vorticityConfinement", 0, t); }
     exint START_FRAME(exint t) { return evalInt("startFrame", 0, t); }
 
-    /// Member variables are stored in the actual SOP, not with the geometry
-    /// In this case these are just used to transfer data to the local 
-    /// variable callback.
-    /// Another use for local data is a cache to store expensive calculations.
-    int		myCurrPoint;
-    int		myTotalPoints;
     int     oldIteration;
     int     myStartFrame;
     float   oldKCorr;
