@@ -13,6 +13,7 @@
 #include <GU/GU_PrimSphere.h>
 #include <CH/CH_Manager.h>
 #include <OP/OP_Director.h>
+#include <OP/OP_AutoLockInputs.h>
 
 #include <limits.h>
 #include "FLUIDPlugin.h"
@@ -39,7 +40,6 @@ static PRM_Name		constraintIteration("constraintIteration", "Constraint Iteratio
 static PRM_Name		artificialPressure("artificialPressure", "Artificial Pressure");
 static PRM_Name		viscosity("viscosity", "Viscosity");
 static PRM_Name		vorticityConfinement("vorticityConfinement", "Vorticity Confinement");
-//static PRM_Name		startFrame("startFrame", "Start Frame");
 //				     ^^^^^^^^    ^^^^^^^^^^^^^^^
 //				     internal    descriptive version
 
@@ -48,13 +48,11 @@ static PRM_Default constraintIterationDefault(2);
 static PRM_Default artificialPressureDefault(0.0001);
 static PRM_Default viscosityDefault(0.01);
 static PRM_Default vorticityConfinementDefault(0.0000);
-//static PRM_Default startFrameDefault(1);
 
 static PRM_Range iterationRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 30);
 static PRM_Range tensileRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.01);
 static PRM_Range viscosityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.1);
 static PRM_Range vorticityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.001);
-//static PRM_Range startFrameRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, FRAME_RANGE);
 
 PRM_Template
 SOP_Fluid::myTemplateList[] = {
@@ -63,7 +61,6 @@ SOP_Fluid::myTemplateList[] = {
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &artificialPressure, &artificialPressureDefault, 0, &tensileRange),
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0, &viscosityRange),
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0, &vorticityRange),
-	//PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &startFrame, &startFrameDefault, 0, &startFrameRange),
 	PRM_Template()
 };
 
@@ -75,19 +72,21 @@ OP_Node* SOP_Fluid::myConstructor(OP_Network *net, const char *name, OP_Operator
 
 SOP_Fluid::SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op) : SOP_Node(net, name, op) {
 	myFS = new FluidSystem();
+	// SET SPH RAD - DUE to sensitivity of SPH sim, we REQUIRE 0.5 distance between points.
+	myFS->SPH_RADIUS = 0.1;
 
 	oldIteration = 2;
 	oldKCorr = 0.0001;
 	oldViscosity = 0.01;
 	oldVorticity = 0.0003;
+
+	init = true;
 }
 
-void SOP_Fluid::runSimulation(bool reRun, int frameNumber) {
-	if (reRun) {
-		totalPos.clear();
-		for (int i = 0; i <= (frameNumber+FRAME_RANGE); ++i) {
-			//myFS->Run();
-
+void SOP_Fluid::runSimulation(int frameNumber) {
+	int moreFrame = frameNumber - totalPos.size();
+	if (moreFrame > 0) {
+		for (int i = 0; i <= moreFrame + FRAME_RANGE; ++i) {
 			std::vector<glm::dvec3> temp;
 			for (auto& f : myFS->fluidPs) {
 				glm::dvec3 scaledPos = f->pos;
@@ -97,30 +96,29 @@ void SOP_Fluid::runSimulation(bool reRun, int frameNumber) {
 			totalPos.push_back(temp);
 
 			myFS->Run();
-		}
-	} else if (frameNumber >= totalPos.size()) {
-		int moreFrame = frameNumber - totalPos.size();
-		for (int i = 0; i <= (moreFrame + FRAME_RANGE); ++i) {
-			myFS->Run();
-
-			std::vector<glm::dvec3> temp;
-			for (auto& f : myFS->fluidPs) {
-				glm::dvec3 scaledPos = f->pos;
-				scaledPos /= myFS->SPH_RADIUS;
-				temp.push_back(scaledPos);
-			}
-			totalPos.push_back(temp);
 		}
 	}
 }
 
 SOP_Fluid::~SOP_Fluid() {}
 
-unsigned SOP_Fluid::disableParms() {
-    return 0;
-}
-
 OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
+	OP_Node::flags().setTimeDep(true);// indicate that we have to cook every time current frame changes).
+	fpreal now = context.getTime();
+	fpreal currframe = OPgetDirector()->getChannelManager()->getSample(now);
+
+	// update parameters
+	int ite = CONSTRAINT_ITERATION(now);
+	float kCorr = ARTIFICIAL_PRESSURE(now);
+	float visc = VISCOSITY(now);
+	float vorticity = VORTICITY_CONFINEMENT(now);
+
+
+	//get iinputs
+
+	//OP_AutoLockInputs inputs(this);
+	//if (inputs.lockInput(0, context) >= UT_ERROR_ABORT)
+	//	return error();
 	if (lockInput(0, context) >= UT_ERROR_ABORT) { // check for 1 input (presumably geom)
 		return error();
 	}
@@ -136,40 +134,20 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		return error();
 	}
 
+	// inefficient to do this eveery time?
 	std::vector<glm::dvec3> posn;
 	GA_Offset ptoff;
 	GA_FOR_ALL_PTOFF(fluid_gdp, ptoff) {
 		UT_Vector3 pos = fluid_gdp->getPos3(ptoff);
 		posn.push_back(glm::dvec3(pos[0], pos[2], pos[1]));
+
+		// check points from volume dist? - somehow automate SPH_RAD?
+		//double pDist = glm::length(posn.at(0) - posn.at(1));
 	}
-
-	// check points from volume dist?
-	//double pDist = glm::length(posn.at(0) - posn.at(1));
-
-	// SET SPH RAD - DUE to sensitivity of SPH sim, we REQUIRE 0.5 distance between points.
-	myFS->SPH_RADIUS = 0.1;
-	myFS->SPH_CreateExample(posn);
-
-	// Now, indicate that we are time dependent (i.e. have to cook every time current frame changes).
-	OP_Node::flags().setTimeDep(true);
-
-	// This is the frame that we're cooking at...
-	fpreal now = context.getTime();
-	fpreal currframe = OPgetDirector()->getChannelManager()->getSample(now);
-
-	// update parameters
-	int ite = CONSTRAINT_ITERATION(now);
-	float kCorr = ARTIFICIAL_PRESSURE(now);
-	float visc = VISCOSITY(now);
-	float vorticity = VORTICITY_CONFINEMENT(now);
-	//int sf = START_FRAME(now);
-
-	//myStartFrame = sf;
-	//int simulationFrame = currframe - myStartFrame;
-	//if (simulationFrame < 0) {
-	//	simulationFrame = 0;
-	//}
-	int simulationFrame = currframe;
+	if (init) { // do this just once in the beginning
+		myFS->SPH_CreateExample(posn);
+		init = false;
+	}
 
 	if (ite != oldIteration || kCorr != oldKCorr || visc != oldViscosity || vorticity != oldVorticity) {
 		oldIteration = ite;
@@ -177,19 +155,18 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		oldViscosity = visc;
 		oldVorticity = vorticity;
 		myFS->setParameters(ite, visc, vorticity, kCorr);
-
-		runSimulation(true,simulationFrame);
-	} else {
-		runSimulation(false, simulationFrame);
+		myFS->SPH_CreateExample(posn);
+		totalPos.clear();
 	}
+
+	runSimulation(currframe);
 
 	/*std::cout << "iteration " << ite << endl;
 	cout << "stiffnes " << stif << endl;
 	cout << "viscosity " << visc << endl;
 	cout << "vorticity " << vorticity << "\n" << endl;*/
 
-	//myFS->Run();
-    UT_Vector4	 pos;
+    UT_Vector4 pos;
     GU_PrimPoly		*poly;
     UT_Interrupt	*boss;
 
@@ -197,10 +174,9 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		boss = UTgetInterrupt();
 		gdp->clearAndDestroy();
 
-		if (boss->opStart("Building Fluid")) {
-
-			//std::cout << "curr simfrme: " << simulationFrame << std::endl;
-			for (auto& f : totalPos[simulationFrame]) {
+		if (boss->opStart("Building Fluid") && 
+			currframe < totalPos.size()) {	// currframe generation might not be able to catch up?
+			for (auto& f : totalPos.at(currframe)) {
 				glm::dvec3 scaledPos = f;
 				//scaledPos /= SPH_RADIUS;
 
@@ -224,9 +200,6 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		// regardless of what opStart() returns.
 		boss->opEnd();
     }
-
-	//unlockInputs(); -// we should be doing this, but for some reason everything goes wrong if we do 
-	/// i.e. only 1 sphere rendered
 
     return error();
 }

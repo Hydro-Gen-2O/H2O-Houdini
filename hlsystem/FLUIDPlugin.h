@@ -18,15 +18,12 @@ protected:
     SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op);
     virtual ~SOP_Fluid();
 
-    /// Disable parameters according to other parameters.
-    virtual unsigned disableParms();
-
     /// cookMySop does the actual work of the SOP computing
     virtual OP_ERROR cookMySop(OP_Context &context);
 
     // if reRun is true, clear out all points and rerun whole simulation up to frameNumber 
     // if false, just run up to frameNumber (with a buffer range)
-    void runSimulation(bool reRun, int frameNumber);
+    void runSimulation(int frameNumber);
 
 private:
 	// functions to constantly update the cook function, get the current value that the node has
@@ -37,6 +34,7 @@ private:
     fpreal VORTICITY_CONFINEMENT(fpreal t) { return evalFloat("vorticityConfinement", 0, t); }
     exint START_FRAME(exint t) { return evalInt("startFrame", 0, t); }
 
+    bool init;
     int     oldIteration;
     int     myStartFrame;
     float   oldKCorr;
