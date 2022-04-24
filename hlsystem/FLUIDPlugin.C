@@ -91,7 +91,7 @@ void SOP_Fluid::runSimulation(bool reRun, int frameNumber) {
 			std::vector<glm::dvec3> temp;
 			for (auto& f : myFS->fluidPs) {
 				glm::dvec3 scaledPos = f->pos;
-				scaledPos /= SPH_RADIUS;
+				scaledPos /= myFS->SPH_RADIUS;
 				temp.push_back(scaledPos);
 			}
 			totalPos.push_back(temp);
@@ -106,7 +106,7 @@ void SOP_Fluid::runSimulation(bool reRun, int frameNumber) {
 			std::vector<glm::dvec3> temp;
 			for (auto& f : myFS->fluidPs) {
 				glm::dvec3 scaledPos = f->pos;
-				scaledPos /= SPH_RADIUS;
+				scaledPos /= myFS->SPH_RADIUS;
 				temp.push_back(scaledPos);
 			}
 			totalPos.push_back(temp);
@@ -142,6 +142,12 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		UT_Vector3 pos = fluid_gdp->getPos3(ptoff);
 		posn.push_back(glm::dvec3(pos[0], pos[2], pos[1]));
 	}
+
+	// check points from volume dist?
+	//double pDist = glm::length(posn.at(0) - posn.at(1));
+
+	// SET SPH RAD - DUE to sensitivity of SPH sim, we REQUIRE 0.5 distance between points.
+	myFS->SPH_RADIUS = 0.1;
 	myFS->SPH_CreateExample(posn);
 
 	// Now, indicate that we are time dependent (i.e. have to cook every time current frame changes).
@@ -151,8 +157,6 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	fpreal now = context.getTime();
 	fpreal currframe = OPgetDirector()->getChannelManager()->getSample(now);
 
-	//FluidSystem myplant;
-	
 	// update parameters
 	int ite = CONSTRAINT_ITERATION(now);
 	float kCorr = ARTIFICIAL_PRESSURE(now);
@@ -195,19 +199,8 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 
 		if (boss->opStart("Building Fluid")) {
 
-			//for (int i = 0; i < totalPos.size(); ++i) {
-			//	for (auto& f : totalPos.at(i)) {
-			//		std::cout << "totalPos at " << i << ": " << glm::to_string(f) << std::endl;
-			//	}
-			//}
-
 			//std::cout << "curr simfrme: " << simulationFrame << std::endl;
 			for (auto& f : totalPos[simulationFrame]) {
-			//std::cout << "posn sie: " << posn.size() <<  ", totalPos szie: " << totalPos[simulationFrame].size() << std::endl;
-			//for (int i = 0; i < posn.size(); ++i) { // TODO: this shows the posn is clearly correct...
-				
-				//std::cout << glm::to_string(f) << std::endl;
-
 				glm::dvec3 scaledPos = f;
 				//scaledPos /= SPH_RADIUS;
 
@@ -217,7 +210,7 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 				pos(2) = scaledPos.y;
 
 				GU_PrimSphereParms sphere(gdp);
-				double scale = SPH_RADIUS * 0.4;
+				double scale = myFS->SPH_RADIUS * 0.4;
 				sphere.xform.scale(scale, scale, scale);
 				sphere.xform.translate(pos);
 				GU_PrimSphere::build(sphere, GEO_PRIMSPHERE);
@@ -231,6 +224,9 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		// regardless of what opStart() returns.
 		boss->opEnd();
     }
+
+	//unlockInputs(); -// we should be doing this, but for some reason everything goes wrong if we do 
+	/// i.e. only 1 sphere rendered
 
     return error();
 }

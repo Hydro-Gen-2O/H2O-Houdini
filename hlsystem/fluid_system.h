@@ -33,15 +33,14 @@
 
 	// Tunable(ish) parameters
 	#define m_DT 0.0083
-	#define SPH_RADIUS 0.1
 	#define REST_DENSITY 6378.0
 	#define MAX_NEIGHBOR 50
 	#define RELAXATION 600.0
 
 
 	// Vector params
-	#define SPH_VOLMIN glm::ivec3(-10, -10, 0)
-	#define SPH_VOLMAX glm::ivec3(10, 10, 10)
+	#define SPH_VOLMIN glm::ivec3(-3.5, -3.5, 0)
+	#define SPH_VOLMAX glm::ivec3(3.5, 3.5, 10)
 
 	#define SPH_INITMIN	glm::ivec3(-2, -2, 3)
 	#define SPH_INITMAX	glm::ivec3(2, 2, 9)
@@ -51,8 +50,9 @@
 		FluidSystem ();
 		virtual void Run ();
 
+		double SPH_RADIUS;
+
 		void SPH_CreateExample(std::vector<glm::dvec3> p);
-		//void SPH_CreateExample(int n, int nmax, glm::dvec3 start, glm::dvec3 end);
 		void setParameters(int ite, double visc, double vor, double tensile);
 		void cleanUp();
 	private:
