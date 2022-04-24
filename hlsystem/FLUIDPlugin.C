@@ -116,12 +116,11 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 
 	//get iinputs
 
-	//OP_AutoLockInputs inputs(this);
-	//if (inputs.lockInput(0, context) >= UT_ERROR_ABORT)
-	//	return error();
-	if (lockInput(0, context) >= UT_ERROR_ABORT) { // check for 1 input (presumably geom)
+	OP_AutoLockInputs inputs(this);
+	if (inputs.lockInput(0, context) >= UT_ERROR_ABORT) {
 		return error();
 	}
+
 	duplicateSource(0, context); // copy from input geometry to sop's own gdp
 	// 1st connected input to node
 	GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context));
@@ -160,11 +159,6 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	}
 
 	runSimulation(currframe);
-
-	/*std::cout << "iteration " << ite << endl;
-	cout << "stiffnes " << stif << endl;
-	cout << "viscosity " << visc << endl;
-	cout << "vorticity " << vorticity << "\n" << endl;*/
 
     UT_Vector4 pos;
     GU_PrimPoly		*poly;
