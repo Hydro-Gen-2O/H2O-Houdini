@@ -39,11 +39,11 @@
 
 
 	// Vector params
-	#define SPH_VOLMIN glm::ivec3(-3.5, -3.5, 0)
-	#define SPH_VOLMAX glm::ivec3(3.5, 3.5, 10)
+	#define SPH_VOLMIN glm::dvec3(-3.5, -3.5, 0)
+	#define SPH_VOLMAX glm::dvec3(3.5, 3.5, 10)
 
-	#define SPH_INITMIN	glm::ivec3(-2, -2, 3)
-	#define SPH_INITMAX	glm::ivec3(2, 2, 9)
+	#define SPH_INITMIN	glm::dvec3(-2, -2, 3)
+	#define SPH_INITMAX	glm::dvec3(2, 2, 9)
 
 	class FluidSystem {
 	public:
@@ -56,13 +56,13 @@
 		void setParameters(int ite, double visc, double vor, double tensile);
 		void cleanUp();
 	private:
-		glm::dvec3 scaledMin = glm::dvec3(SPH_VOLMIN) * SPH_RADIUS;
-		glm::dvec3 scaledMax = glm::dvec3(SPH_VOLMAX) * SPH_RADIUS;
+		glm::dvec3 scaledMin;
+		glm::dvec3 scaledMax;
 
 		// the axis between the bounds of the fluid https://en.wikipedia.org/wiki/Space_diagonal
-		glm::ivec3 gridSpaceDiag = glm::ivec3((scaledMax - scaledMin) / SPH_RADIUS);
+		glm::ivec3 gridSpaceDiag;
 
-		int totalGridCells = gridSpaceDiag.x * gridSpaceDiag.y * gridSpaceDiag.z;
+		int totalGridCells;
 
 		void PredictPositions();
 		void FindNeighbors();

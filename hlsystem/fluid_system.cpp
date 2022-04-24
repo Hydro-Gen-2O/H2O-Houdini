@@ -75,9 +75,15 @@ void FluidSystem::cleanUp()
 	}
 }
 
+// SET SPH_RADIUS BEFORE THIS!
 void FluidSystem::SPH_CreateExample(std::vector<glm::dvec3> p) {
-	cleanUp(); 
-	
+	cleanUp();
+
+	gridSpaceDiag = glm::ivec3((scaledMax - scaledMin) / SPH_RADIUS);
+	totalGridCells = gridSpaceDiag.x * gridSpaceDiag.y * gridSpaceDiag.z;
+	scaledMin = glm::dvec3(SPH_VOLMIN) * SPH_RADIUS;
+	scaledMax = glm::dvec3(SPH_VOLMAX) * SPH_RADIUS;
+
 	for (auto& pt : p) {
 		fluidPs.push_back(std::make_unique<Fluid>(pt * SPH_RADIUS));
 	}
@@ -95,7 +101,7 @@ void FluidSystem::SPH_CreateExample(std::vector<glm::dvec3> p) {
 }
 
 glm::ivec3 FluidSystem::GetGridPos(const glm::dvec3& pos) {
-	return glm::ivec3(pos / SPH_RADIUS) - SPH_VOLMIN;
+	return glm::ivec3(pos / SPH_RADIUS - SPH_VOLMIN);
 }
 
 int FluidSystem::GetGridIndex(const glm::ivec3& gridPos) {

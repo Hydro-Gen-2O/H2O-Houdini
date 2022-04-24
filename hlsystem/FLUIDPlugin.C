@@ -47,7 +47,7 @@ static PRM_Name		vorticityConfinement("vorticityConfinement", "Vorticity Confine
 static PRM_Default constraintIterationDefault(2);
 static PRM_Default artificialPressureDefault(0.0001);
 static PRM_Default viscosityDefault(0.01);
-static PRM_Default vorticityConfinementDefault(0.0003);
+static PRM_Default vorticityConfinementDefault(0.0000);
 //static PRM_Default startFrameDefault(1);
 
 static PRM_Range iterationRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 30);
