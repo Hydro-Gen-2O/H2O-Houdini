@@ -167,7 +167,7 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		if (boss->opStart("Building Fluid") && 
 			currframe < totalPos.size()) {	// currframe generation might not be able to catch up?
 			for (auto& f : totalPos.at(currframe)) {
-				UT_Vector3 pos;
+				/*UT_Vector3 pos;
 				pos(0) = f.x;
 				pos(1) = f.z;
 				pos(2) = f.y;
@@ -176,7 +176,16 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 				double scale = myFS->SPH_RADIUS * 0.4;
 				sphere.xform.scale(scale, scale, scale);
 				sphere.xform.translate(pos);
-				GU_PrimSphere::build(sphere, GEO_PRIMSPHERE);
+				GU_PrimSphere::build(sphere, GEO_PRIMSPHERE);*/
+
+				UT_Vector3 pos;
+				pos(0) = f.x;
+				pos(1) = f.z;
+				pos(2) = f.y;
+
+				GA_Offset ptoffstart = gdp->appendPoint();
+
+				gdp->setPos3(ptoffstart, pos);
 			}
 			// Highlight the star which we have just generated.  This routine
 			// call clears any currently highlighted geometry, and then it
