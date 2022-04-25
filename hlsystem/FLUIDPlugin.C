@@ -40,6 +40,7 @@ static PRM_Name		constraintIteration("constraintIteration", "Constraint Iteratio
 static PRM_Name		artificialPressure("artificialPressure", "Artificial Pressure");
 static PRM_Name		viscosity("viscosity", "Viscosity");
 static PRM_Name		vorticityConfinement("vorticityConfinement", "Vorticity Confinement");
+static PRM_Name		maxPts("maxPts", "Maximum Points");
 //				     ^^^^^^^^    ^^^^^^^^^^^^^^^
 //				     internal    descriptive version
 
@@ -48,11 +49,13 @@ static PRM_Default constraintIterationDefault(2);
 static PRM_Default artificialPressureDefault(0.0001);
 static PRM_Default viscosityDefault(0.01);
 static PRM_Default vorticityConfinementDefault(0.0000);
+static PRM_Default maxPtsDefault(1000);
 
 static PRM_Range iterationRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 30);
 static PRM_Range tensileRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.01);
 static PRM_Range viscosityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.1);
 static PRM_Range vorticityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.001);
+static PRM_Range maxPtsRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 5000);
 
 PRM_Template
 SOP_Fluid::myTemplateList[] = {
@@ -61,6 +64,7 @@ SOP_Fluid::myTemplateList[] = {
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &artificialPressure, &artificialPressureDefault, 0, &tensileRange),
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0, &viscosityRange),
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0, &vorticityRange),
+	PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &maxPts, &maxPtsDefault, 0, &maxPtsRange),
 	PRM_Template()
 };
 
@@ -112,39 +116,35 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	float kCorr = ARTIFICIAL_PRESSURE(now);
 	float visc = VISCOSITY(now);
 	float vorticity = VORTICITY_CONFINEMENT(now);
+	int maxPts = MAX_PTS(now);
 
-
-	//get iinputs
-
+	//get inputs
 	OP_AutoLockInputs inputs(this);
-	if (inputs.lockInput(0, context) >= UT_ERROR_ABORT) {
-		return error();
+	if (inputs.lockInput(0, context) >= UT_ERROR_ABORT) { return error(); }
+
+	// only if input geo is different, re-get all the pts
+	int input_changed;
+	duplicateChangedSource(0, context, &input_changed);
+	if (input_changed) {
+		fluidPs.clear();
+		// 1st connected input to node
+		GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context));
+		if (int npts = fluid_gdp->getPointRange().getEntries() > maxPts) {
+			addWarning(SOP_MESSAGE, "Too many pts: " + npts);
+			return error();
+		}
+		
+		GA_Offset ptoff;
+		GA_FOR_ALL_PTOFF(fluid_gdp, ptoff) {
+			UT_Vector3 pos = fluid_gdp->getPos3(ptoff);
+			fluidPs.push_back(glm::dvec3(pos[0], pos[2], pos[1]));
+			// check points from volume dist? - somehow automate SPH_RAD?
+			//double pDist = glm::length(fluidPs.at(0) - fluidPs.at(1));
+		}
 	}
-
-	duplicateSource(0, context); // copy from input geometry to sop's own gdp
-	// 1st connected input to node
-	GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context));
-
-	//TODO: set magic number in ui? max particles
-	if (int npts = fluid_gdp->getPointRange().getEntries() > 1000) {
-		addWarning(SOP_MESSAGE, "Too many pts: " + npts);
-		//HOM_Module& hou = HOM();
-		//hou.ui().displayMessage("too many pts: " + npts);
-		return error();
-	}
-
-	// inefficient to do this eveery time?
-	std::vector<glm::dvec3> posn;
-	GA_Offset ptoff;
-	GA_FOR_ALL_PTOFF(fluid_gdp, ptoff) {
-		UT_Vector3 pos = fluid_gdp->getPos3(ptoff);
-		posn.push_back(glm::dvec3(pos[0], pos[2], pos[1]));
-
-		// check points from volume dist? - somehow automate SPH_RAD?
-		//double pDist = glm::length(posn.at(0) - posn.at(1));
-	}
+	
 	if (init) { // do this just once in the beginning
-		myFS->SPH_CreateExample(posn);
+		myFS->SPH_CreateExample(fluidPs);
 		init = false;
 	}
 
@@ -154,16 +154,12 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		oldViscosity = visc;
 		oldVorticity = vorticity;
 		myFS->setParameters(ite, visc, vorticity, kCorr);
-		myFS->SPH_CreateExample(posn);
-		totalPos.clear();
+		myFS->SPH_CreateExample(fluidPs);
+		totalPos.clear(); // clear cache
 	}
-
 	runSimulation(currframe);
 
-    UT_Vector4 pos;
-    GU_PrimPoly		*poly;
-    UT_Interrupt	*boss;
-
+    UT_Interrupt *boss;
     if (error() < UT_ERROR_ABORT) {
 		boss = UTgetInterrupt();
 		gdp->clearAndDestroy();
@@ -171,13 +167,10 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		if (boss->opStart("Building Fluid") && 
 			currframe < totalPos.size()) {	// currframe generation might not be able to catch up?
 			for (auto& f : totalPos.at(currframe)) {
-				glm::dvec3 scaledPos = f;
-				//scaledPos /= SPH_RADIUS;
-
 				UT_Vector3 pos;
-				pos(0) = scaledPos.x;
-				pos(1) = scaledPos.z;
-				pos(2) = scaledPos.y;
+				pos(0) = f.x;
+				pos(1) = f.z;
+				pos(2) = f.y;
 
 				GU_PrimSphereParms sphere(gdp);
 				double scale = myFS->SPH_RADIUS * 0.4;

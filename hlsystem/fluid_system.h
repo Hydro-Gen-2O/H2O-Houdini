@@ -42,9 +42,6 @@
 	#define SPH_VOLMIN glm::dvec3(-3.5, -3.5, 0)
 	#define SPH_VOLMAX glm::dvec3(3.5, 3.5, 10)
 
-	#define SPH_INITMIN	glm::dvec3(-2, -2, 3)
-	#define SPH_INITMAX	glm::dvec3(2, 2, 9)
-
 	class FluidSystem {
 	public:
 		FluidSystem ();
