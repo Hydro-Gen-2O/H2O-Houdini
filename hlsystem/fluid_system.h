@@ -39,8 +39,8 @@
 
 
 	// Vector params
-	#define SPH_VOLMIN glm::dvec3(-3.5, -3.5, 0)
-	#define SPH_VOLMAX glm::dvec3(3.5, 3.5, 10)
+	#define SPH_VOLMIN glm::dvec3(-10, -10, -10)
+	#define SPH_VOLMAX glm::dvec3(10, 10, 10)
 
 	class FluidSystem {
 	public:

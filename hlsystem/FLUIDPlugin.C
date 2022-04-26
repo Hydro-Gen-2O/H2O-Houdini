@@ -21,7 +21,9 @@
 #include <HOM/HOM_ui.h>
 #include <glm/gtx/string_cast.hpp>
 
-#define FRAME_RANGE 100
+#include <GU/GU_RayIntersect.h>
+
+#define FRAME_RANGE 10
 
 void newSopOperator(OP_OperatorTable *table) {
     table->addOperator(
@@ -29,7 +31,7 @@ void newSopOperator(OP_OperatorTable *table) {
 			    "H2O",			// UI name
 			     SOP_Fluid::myConstructor,	// How to build the SOP
 			     SOP_Fluid::myTemplateList,	// My parameters
-			     1,				// Min # of sources
+			     1,				// Min # of sources TODO: change this to 2 or whatever for final
 			     1,				// Max # of sources
 			     0,	// Local variables e.g., CH_LocalVariable SOP_Fluid::myVariables[] = {};
 			     OP_FLAG_GENERATOR)		// Flag it as generator
@@ -84,6 +86,18 @@ SOP_Fluid::SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op) : SOP_N
 	oldViscosity = 0.01;
 	oldVorticity = 0.0003;
 
+	// hardcode fluid locations
+	double ss = 0.5;
+	//for (double x = -2; x <= 2; x += ss) {
+	//	for (double y = -2; y <= 2; y += ss) {
+	//		for (double z = 3; z <= 6; z += ss) {
+	//			fluidPs.push_back(glm::dvec3(x, y, z));
+	//		}
+	//	}
+	//}
+	fluidPs.push_back(glm::dvec3(0, 0, 2));
+	myFS->SPH_CreateExample(fluidPs);
+
 	init = true;
 }
 
@@ -99,7 +113,29 @@ void SOP_Fluid::runSimulation(int frameNumber) {
 			}
 			totalPos.push_back(temp);
 
-			myFS->Run();
+			//for (int j = 0; j < temp.size(); ++j) { // auto& vec : totalPos.at(i)
+			//	glm::dvec3 vel = temp.at(j) - totalPos.at(i - 1).at(j); // ?
+			//	GU_RayInfo info(dir.normalize());
+			//UT_Vector3 dir;
+			//dir[0] = vel.x * 1. / 30.;
+			//dir[1] = vel.z * 1. / 30.;
+			//dir[2] = vel.y * 1. / 30
+			//	UT_Vector3 start;
+			//	start[0] = temp.at(j).x;
+			//	start[1] = temp.at(j).z;
+			//	start[2] = temp.at(j).y;
+			//	std::cout << start << " in dir: " << dir << std::endl;
+			//	if (myCollision->sendRay(start, dir, info) > 0) {
+			//		std::cout << "sent ray!!!" << std::endl;
+			//		temp.at(j) = glm::dvec3(totalPos.at(i - 1).at(j)); //???
+			//	}
+			//}
+			
+			for (int i = 0; i < myFS->fluidPs.size(); ++i) {
+				myFS->fluidPs.at(i)->pos = myFS->fluidPs.at(i)->pos - glm::dvec3(0, 0, 0.02);
+			}
+			 // instead of running fluid ps, just run my own test
+			//myFS->Run();
 		}
 	}
 }
@@ -118,35 +154,54 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	float vorticity = VORTICITY_CONFINEMENT(now);
 	int maxPts = MAX_PTS(now);
 
-	//get inputs
+	//get inputs for FLUID GEOMETRY
+	//OP_AutoLockInputs inputs(this);
+	//if (inputs.lockInput(0, context) >= UT_ERROR_ABORT) { return error(); }
+	//// only if input geo is different, re-get all the pts
+	//int input_changed;
+	//duplicateChangedSource(0, context, &input_changed);
+	//if (input_changed) {
+	//	fluidPs.clear();
+	//	// 1st connected input to node
+	//	GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context));
+	//	if (int npts = fluid_gdp->getPointRange().getEntries() > maxPts) {
+	//		addWarning(SOP_MESSAGE, "Too many pts: " + npts);
+	//		return error();
+	//	}
+	//	
+	//	GA_Offset ptoff;
+	//	GA_FOR_ALL_PTOFF(fluid_gdp, ptoff) {
+	//		UT_Vector3 pos = fluid_gdp->getPos3(ptoff);
+	//		fluidPs.push_back(glm::dvec3(pos[0], pos[2], pos[1]));
+	//		// check points from volume dist? - somehow automate SPH_RAD?
+	//		//double pDist = glm::length(fluidPs.at(0) - fluidPs.at(1));
+	//	}
+	//}
+	//
+	//if (init) { // do this just once in the beginning
+	//	myFS->SPH_CreateExample(fluidPs);
+	//	init = false;
+	//}
+
+	//get inputs for COLLISION geometry
 	OP_AutoLockInputs inputs(this);
 	if (inputs.lockInput(0, context) >= UT_ERROR_ABORT) { return error(); }
-
 	// only if input geo is different, re-get all the pts
 	int input_changed;
 	duplicateChangedSource(0, context, &input_changed);
 	if (input_changed) {
-		fluidPs.clear();
-		// 1st connected input to node
-		GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context));
-		if (int npts = fluid_gdp->getPointRange().getEntries() > maxPts) {
-			addWarning(SOP_MESSAGE, "Too many pts: " + npts);
-			return error();
+		boundPs.clear();
+
+		const GU_Detail* collision = inputGeo(0, context);
+		if (collision) {
+			myCollision = new GU_RayIntersect;
+			myCollision->init(collision);
 		}
-		
-		GA_Offset ptoff;
-		GA_FOR_ALL_PTOFF(fluid_gdp, ptoff) {
-			UT_Vector3 pos = fluid_gdp->getPos3(ptoff);
-			fluidPs.push_back(glm::dvec3(pos[0], pos[2], pos[1]));
-			// check points from volume dist? - somehow automate SPH_RAD?
-			//double pDist = glm::length(fluidPs.at(0) - fluidPs.at(1));
-		}
+		//... code to get source info, store in local class vars for source vel ?
+
+		// timestep func
 	}
-	
-	if (init) { // do this just once in the beginning
-		myFS->SPH_CreateExample(fluidPs);
-		init = false;
-	}
+	// end collision input get
 
 	if (ite != oldIteration || kCorr != oldKCorr || visc != oldViscosity || vorticity != oldVorticity) {
 		oldIteration = ite;
@@ -183,6 +238,28 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 			// highlights every primitive for this SOP. 
 			select(GU_SPrimitive);
 		}
+
+
+
+		if (myCollision) {
+			UT_Vector3 dir;
+			dir[0] = 0;
+			dir[1] = -1;
+			dir[2] = 0;
+
+			GU_RayInfo info(dir.normalize());
+
+			GA_Offset ptoff;
+			GA_FOR_ALL_PTOFF(gdp, ptoff) {
+				UT_Vector3 start = gdp->getPos3(ptoff);
+				std::cout << start << " in dir: " << dir << std::endl;
+				if (myCollision->sendRay(start, dir, info) > 0) {
+					std::cout << "sent ray!!!" << std::endl;
+					//temp.at(j) = glm::dvec3(totalPos.at(i - 1).at(j)); //???
+				}
+			}
+		}
+
 		// Tell the interrupt server that we've completed. Must do this
 		// regardless of what opStart() returns.
 		boss->opEnd();

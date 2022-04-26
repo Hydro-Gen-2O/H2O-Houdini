@@ -3,6 +3,7 @@
 
 //#include <GEO/GEO_Point.h>
 #include <SOP/SOP_Node.h>
+#include <GU/GU_RayIntersect.h>
 #include "fluid_system.h"
 
 class SOP_Fluid : public SOP_Node {
@@ -41,5 +42,8 @@ private:
     FluidSystem* myFS;
     std::vector<std::vector<glm::dvec3>> totalPos; // all postions at all frame (0-60)
     std::vector<glm::dvec3> fluidPs;
+
+    std::vector<glm::dvec3> boundPs;
+    GU_RayIntersect* myCollision;
 };
 #endif
