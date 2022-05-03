@@ -44,6 +44,7 @@ private:
     float   oldVorticity;
     int     currentFrame; //for calculation in simulate
     bool    clearOrNot; //if we want to clear the cache
+
     OP_Context* myContext;
     FluidSystem* myFS;
     std::vector<std::vector<glm::dvec3>> totalPos; 

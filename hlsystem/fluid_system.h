@@ -39,8 +39,8 @@
 
 
 	// Vector params
-	#define SPH_VOLMIN glm::dvec3(-10, -10, 0)
-	#define SPH_VOLMAX glm::dvec3(10, 10, 30)
+	//#define SPH_VOLMIN glm::dvec3(-10, -10, 0)
+	//#define SPH_VOLMAX glm::dvec3(10, 10, 30)
 
 	class FluidSystem {
 	public:
@@ -48,6 +48,8 @@
 		virtual void Run ();
 
 		double SPH_RADIUS;
+		glm::dvec3  SPH_VOLMIN = glm::dvec3(-10, -10, 0);
+		glm::dvec3  SPH_VOLMAX = glm::dvec3(10, 10, 20);
 
 		void SPH_CreateExample(std::vector<glm::dvec3> p);
 		void setParameters(int ite, double visc, double vor, double tensile);

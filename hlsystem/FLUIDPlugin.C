@@ -40,6 +40,8 @@ static PRM_Name		constraintIteration("constraintIteration", "Constraint Iteratio
 static PRM_Name		artificialPressure("artificialPressure", "Artificial Pressure");
 static PRM_Name		viscosity("viscosity", "Viscosity");
 static PRM_Name		vorticityConfinement("vorticityConfinement", "Vorticity Confinement");
+static PRM_Name		minCorner("minCorner", "Min Corner");
+static PRM_Name		maxCorner("maxCorner", "Max Corner");
 //static PRM_Name		maxPts("maxPts", "Maximum Points");
 static PRM_Name		simulateButton("simulateButton", "Run Simulation");
 //				     ^^^^^^^^    ^^^^^^^^^^^^^^^
@@ -50,6 +52,8 @@ static PRM_Default constraintIterationDefault(2);
 static PRM_Default artificialPressureDefault(0.0001);
 static PRM_Default viscosityDefault(0.01);
 static PRM_Default vorticityConfinementDefault(0.0000);
+static PRM_Default minDefault[] = { PRM_Default(-10.0), PRM_Default(0.0), PRM_Default(-10.0) };
+static PRM_Default maxDefault[] = { PRM_Default(10.0), PRM_Default(30.0), PRM_Default(10.0) };
 //static PRM_Default maxPtsDefault(5000);
 
 static PRM_Range iterationRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 30);
@@ -65,6 +69,8 @@ SOP_Fluid::myTemplateList[] = {
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &artificialPressure, &artificialPressureDefault, 0, &tensileRange),
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0, &viscosityRange),
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0, &vorticityRange),
+	PRM_Template(PRM_XYZ_J, 3, &minCorner, minDefault),
+	PRM_Template(PRM_XYZ_J, 3, &maxCorner, maxDefault),
 	//PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &maxPts, &maxPtsDefault, 0, &maxPtsRange),
 	PRM_Template(PRM_CALLBACK, 1, &simulateButton, 0, 0, 0, &simulate),
 	PRM_Template()
@@ -82,7 +88,7 @@ SOP_Fluid::simulate(void* op, int index, fpreal t, const PRM_Template*)
 	}
 	//fluid->totalPos.clear(); // clear cache
 	fluid->runSimulation(fluid->currentFrame);
-	std::cout << fluid->totalPos.size() << std::endl;
+	//std::cout << fluid->totalPos.size() << std::endl;
 	//fluid->cookMySop(*(fluid->myContext));
 	//fluid->buildGeo();
 	return 1;
@@ -139,6 +145,22 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	float kCorr = ARTIFICIAL_PRESSURE(now);
 	float visc = VISCOSITY(now);
 	float vorticity = VORTICITY_CONFINEMENT(now);
+	float minx; //current mincorner
+	float miny;
+	float minz;
+	minx = evalFloat("minCorner", 0, now);
+	miny = evalFloat("minCorner", 1, now);
+	minz = evalFloat("minCorner", 2, now);
+	float maxx; // currentmaxcorner
+	float maxy;
+	float maxz;
+	maxx = evalFloat("maxCorner", 0, now);
+	maxy = evalFloat("maxCorner", 1, now);
+	maxz = evalFloat("maxCorner", 2, now);
+	glm::dvec3 currentMinCorner(minx, minz, miny);
+	glm::dvec3 currentMaxCorner(maxx, maxz, maxy);
+
+
 	//int maxPts = MAX_PTS(now);
 
 	//get inputs
@@ -174,11 +196,14 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		init = false;
 	}
 
-	if (ite != oldIteration || kCorr != oldKCorr || visc != oldViscosity || vorticity != oldVorticity) {
+	if (ite != oldIteration || kCorr != oldKCorr || visc != oldViscosity || vorticity != oldVorticity ||
+				currentMinCorner != myFS->SPH_VOLMIN || currentMaxCorner != myFS->SPH_VOLMAX) {
 		oldIteration = ite;
 		oldKCorr = kCorr;
 		oldViscosity = visc;
 		oldVorticity = vorticity;
+		myFS->SPH_VOLMIN = currentMinCorner;
+		myFS->SPH_VOLMAX = currentMaxCorner;
 		myFS->setParameters(ite, visc, vorticity, kCorr);
 		myFS->SPH_CreateExample(fluidPs);
 		clearOrNot = true;
