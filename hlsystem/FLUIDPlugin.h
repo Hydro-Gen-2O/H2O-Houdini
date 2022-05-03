@@ -22,24 +22,31 @@ protected:
     virtual OP_ERROR cookMySop(OP_Context &context);
 
     void runSimulation(int frameNumber);
+
+    // callback used by the "Clear All" parameter
+    static int simulate(void* op, int index, fpreal time, const PRM_Template*);
+    OP_ERROR buildGeo();
 private:
 	// functions to constantly update the cook function, get the current value that the node has
-    exint MAX_PTS(exint t) { return evalFloat("maxPts", 0, t); }
+    //exint MAX_PTS(exint t) { return evalFloat("maxPts", 0, t); }
 
     exint CONSTRAINT_ITERATION(exint t) { return evalInt("constraintIteration", 0, t); }
     fpreal ARTIFICIAL_PRESSURE(fpreal t) { return evalFloat("artificialPressure", 0, t); }
     fpreal VISCOSITY(fpreal t) { return evalFloat("viscosity", 0, t); }
     fpreal VORTICITY_CONFINEMENT(fpreal t) { return evalFloat("vorticityConfinement", 0, t); }
-    exint START_FRAME(exint t) { return evalInt("startFrame", 0, t); }
+    //exint START_FRAME(exint t) { return evalInt("startFrame", 0, t); }
 
     bool init;
     int     oldIteration;
-    int     myStartFrame;
+    //int     myStartFrame;
     float   oldKCorr;
     float   oldViscosity;
     float   oldVorticity;
+    int     currentFrame; //for calculation in simulate
+    bool    clearOrNot; //if we want to clear the cache
+    OP_Context* myContext;
     FluidSystem* myFS;
-    std::vector<std::vector<glm::dvec3>> totalPos; // all postions at all frame (0-60)
+    std::vector<std::vector<glm::dvec3>> totalPos; 
     std::vector<glm::dvec3> fluidPs;
 };
 #endif

@@ -21,7 +21,7 @@
 #include <HOM/HOM_ui.h>
 #include <glm/gtx/string_cast.hpp>
 
-#define FRAME_RANGE 100
+#define FRAME_RANGE 60 // a buffer for more frame than current frame
 
 void newSopOperator(OP_OperatorTable *table) {
     table->addOperator(
@@ -40,7 +40,8 @@ static PRM_Name		constraintIteration("constraintIteration", "Constraint Iteratio
 static PRM_Name		artificialPressure("artificialPressure", "Artificial Pressure");
 static PRM_Name		viscosity("viscosity", "Viscosity");
 static PRM_Name		vorticityConfinement("vorticityConfinement", "Vorticity Confinement");
-static PRM_Name		maxPts("maxPts", "Maximum Points");
+//static PRM_Name		maxPts("maxPts", "Maximum Points");
+static PRM_Name		simulateButton("simulateButton", "Run Simulation");
 //				     ^^^^^^^^    ^^^^^^^^^^^^^^^
 //				     internal    descriptive version
 
@@ -49,13 +50,13 @@ static PRM_Default constraintIterationDefault(2);
 static PRM_Default artificialPressureDefault(0.0001);
 static PRM_Default viscosityDefault(0.01);
 static PRM_Default vorticityConfinementDefault(0.0000);
-static PRM_Default maxPtsDefault(1000);
+//static PRM_Default maxPtsDefault(5000);
 
 static PRM_Range iterationRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 30);
 static PRM_Range tensileRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.01);
 static PRM_Range viscosityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.1);
 static PRM_Range vorticityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.001);
-static PRM_Range maxPtsRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 5000);
+//static PRM_Range maxPtsRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 100000);
 
 PRM_Template
 SOP_Fluid::myTemplateList[] = {
@@ -64,9 +65,28 @@ SOP_Fluid::myTemplateList[] = {
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &artificialPressure, &artificialPressureDefault, 0, &tensileRange),
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0, &viscosityRange),
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0, &vorticityRange),
-	PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &maxPts, &maxPtsDefault, 0, &maxPtsRange),
+	//PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &maxPts, &maxPtsDefault, 0, &maxPtsRange),
+	PRM_Template(PRM_CALLBACK, 1, &simulateButton, 0, 0, 0, &simulate),
 	PRM_Template()
 };
+
+int
+SOP_Fluid::simulate(void* op, int index, fpreal t, const PRM_Template*)
+{
+	SOP_Fluid* fluid = (SOP_Fluid*)op;
+
+	if (fluid->clearOrNot)
+	{
+		fluid->totalPos.clear();
+		fluid->clearOrNot = false;
+	}
+	//fluid->totalPos.clear(); // clear cache
+	fluid->runSimulation(fluid->currentFrame);
+	std::cout << fluid->totalPos.size() << std::endl;
+	//fluid->cookMySop(*(fluid->myContext));
+	//fluid->buildGeo();
+	return 1;
+}
 
 // --------------------------end boilerplates-----------------------------------
 
@@ -83,13 +103,14 @@ SOP_Fluid::SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op) : SOP_N
 	oldKCorr = 0.0001;
 	oldViscosity = 0.01;
 	oldVorticity = 0.0003;
+	clearOrNot = false;
 
 	init = true;
 }
 
 void SOP_Fluid::runSimulation(int frameNumber) {
 	int moreFrame = frameNumber - totalPos.size();
-	if (moreFrame > 0) {
+	if (moreFrame >= 0) {
 		for (int i = 0; i <= moreFrame + FRAME_RANGE; ++i) {
 			std::vector<glm::dvec3> temp;
 			for (auto& f : myFS->fluidPs) {
@@ -110,13 +131,15 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	OP_Node::flags().setTimeDep(true);// indicate that we have to cook every time current frame changes).
 	fpreal now = context.getTime();
 	fpreal currframe = OPgetDirector()->getChannelManager()->getSample(now);
+	currentFrame = currframe;
+	myContext = &context;
 
 	// update parameters
 	int ite = CONSTRAINT_ITERATION(now);
 	float kCorr = ARTIFICIAL_PRESSURE(now);
 	float visc = VISCOSITY(now);
 	float vorticity = VORTICITY_CONFINEMENT(now);
-	int maxPts = MAX_PTS(now);
+	//int maxPts = MAX_PTS(now);
 
 	//get inputs
 	OP_AutoLockInputs inputs(this);
@@ -129,10 +152,10 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		fluidPs.clear();
 		// 1st connected input to node
 		GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context));
-		if (int npts = fluid_gdp->getPointRange().getEntries() > maxPts) {
+		/*if (int npts = fluid_gdp->getPointRange().getEntries() > maxPts) {
 			addWarning(SOP_MESSAGE, "Too many pts: " + npts);
 			return error();
-		}
+		}*/
 		
 		GA_Offset ptoff;
 		GA_FOR_ALL_PTOFF(fluid_gdp, ptoff) {
@@ -141,6 +164,9 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 			// check points from volume dist? - somehow automate SPH_RAD?
 			//double pDist = glm::length(fluidPs.at(0) - fluidPs.at(1));
 		}
+		myFS->setParameters(ite, visc, vorticity, kCorr);
+		myFS->SPH_CreateExample(fluidPs);
+		clearOrNot = true;
 	}
 	
 	if (init) { // do this just once in the beginning
@@ -155,9 +181,9 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		oldVorticity = vorticity;
 		myFS->setParameters(ite, visc, vorticity, kCorr);
 		myFS->SPH_CreateExample(fluidPs);
-		totalPos.clear(); // clear cache
+		clearOrNot = true;
 	}
-	runSimulation(currframe);
+	//runSimulation(currframe);
 
     UT_Interrupt *boss;
     if (error() < UT_ERROR_ABORT) {
@@ -198,4 +224,32 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
     }
 
     return error();
+}
+
+OP_ERROR SOP_Fluid::buildGeo() // this one not working
+{
+	UT_Interrupt* boss;
+	if (error() < UT_ERROR_ABORT) {
+		boss = UTgetInterrupt();
+		gdp->clearAndDestroy();
+
+		if (boss->opStart("Building Fluid") && currentFrame < totalPos.size()) {	// currframe generation might not be able to catch up?
+			for (auto& f : totalPos.at(currentFrame)) {
+				UT_Vector3 pos;
+				pos(0) = f.x;
+				pos(1) = f.z;
+				pos(2) = f.y;
+
+				GA_Offset ptoffstart = gdp->appendPoint();
+
+				gdp->setPos3(ptoffstart, pos);
+			}
+
+			select(GU_SPrimitive);
+		}
+
+		boss->opEnd();
+	}
+
+	return error();
 }
