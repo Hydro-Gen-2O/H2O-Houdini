@@ -53,7 +53,7 @@ static PRM_Default artificialPressureDefault(0.0001);
 static PRM_Default viscosityDefault(0.01);
 static PRM_Default vorticityConfinementDefault(0.0000);
 static PRM_Default minDefault[] = { PRM_Default(-10.0), PRM_Default(0.0), PRM_Default(-10.0) };
-static PRM_Default maxDefault[] = { PRM_Default(10.0), PRM_Default(30.0), PRM_Default(10.0) };
+static PRM_Default maxDefault[] = { PRM_Default(10.0), PRM_Default(20.0), PRM_Default(10.0) };
 //static PRM_Default maxPtsDefault(5000);
 
 static PRM_Range iterationRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 30);
@@ -80,14 +80,8 @@ int
 SOP_Fluid::simulate(void* op, int index, fpreal t, const PRM_Template*)
 {
 	SOP_Fluid* fluid = (SOP_Fluid*)op;
-
-	if (fluid->clearOrNot)
-	{
-		fluid->totalPos.clear();
-		fluid->clearOrNot = false;
-	}
-	//fluid->totalPos.clear(); // clear cache
-	fluid->runSimulation(fluid->currentFrame);
+	
+	fluid->runSimulation(fluid->currentFrame, fluid->clearOrNot);
 	//std::cout << fluid->totalPos.size() << std::endl;
 	//fluid->cookMySop(*(fluid->myContext));
 	//fluid->buildGeo();
@@ -114,7 +108,16 @@ SOP_Fluid::SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op) : SOP_N
 	init = true;
 }
 
-void SOP_Fluid::runSimulation(int frameNumber) {
+void SOP_Fluid::runSimulation(int frameNumber, bool reRun) {
+	if (reRun)
+	{
+		totalPos.clear();
+		clearOrNot = false;
+		myFS->setParameters(oldIteration, oldViscosity, oldVorticity, oldKCorr);
+		myFS->SPH_VOLMIN = oldMinCorner;
+		myFS->SPH_VOLMAX = oldMaxCorner;
+		myFS->SPH_CreateExample(fluidPs);
+	}
 	int moreFrame = frameNumber - totalPos.size();
 	if (moreFrame >= 0) {
 		for (int i = 0; i <= moreFrame + FRAME_RANGE; ++i) {
@@ -170,7 +173,7 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	// only if input geo is different, re-get all the pts
 	int input_changed;
 	duplicateChangedSource(0, context, &input_changed);
-	if (input_changed) {
+	if (input_changed || currentMinCorner != myFS->SPH_VOLMIN || currentMaxCorner != myFS->SPH_VOLMAX) {
 		fluidPs.clear();
 		// 1st connected input to node
 		GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context));
@@ -182,7 +185,12 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		GA_Offset ptoff;
 		GA_FOR_ALL_PTOFF(fluid_gdp, ptoff) {
 			UT_Vector3 pos = fluid_gdp->getPos3(ptoff);
-			fluidPs.push_back(glm::dvec3(pos[0], pos[2], pos[1]));
+			glm::dvec3 p(pos[0], pos[2], pos[1]);
+			if (p.x > currentMinCorner.x && p.y > currentMinCorner.y && p.z > currentMinCorner.z &&
+				p.x < currentMaxCorner.x && p.y < currentMaxCorner.y && p.z < currentMaxCorner.z)
+			{
+				fluidPs.push_back(p);
+			}
 			// check points from volume dist? - somehow automate SPH_RAD?
 			//double pDist = glm::length(fluidPs.at(0) - fluidPs.at(1));
 		}
@@ -202,13 +210,13 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		oldKCorr = kCorr;
 		oldViscosity = visc;
 		oldVorticity = vorticity;
-		myFS->SPH_VOLMIN = currentMinCorner;
-		myFS->SPH_VOLMAX = currentMaxCorner;
-		myFS->setParameters(ite, visc, vorticity, kCorr);
-		myFS->SPH_CreateExample(fluidPs);
+		oldMinCorner = currentMinCorner;
+		oldMaxCorner = currentMaxCorner;
+		/*myFS->setParameters(ite, visc, vorticity, kCorr);
+		myFS->SPH_CreateExample(fluidPs);*/
 		clearOrNot = true;
 	}
-	//runSimulation(currframe);
+	runSimulation(currframe, false);
 
     UT_Interrupt *boss;
     if (error() < UT_ERROR_ABORT) {

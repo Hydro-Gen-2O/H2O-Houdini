@@ -21,7 +21,7 @@ protected:
     /// cookMySop does the actual work of the SOP computing
     virtual OP_ERROR cookMySop(OP_Context &context);
 
-    void runSimulation(int frameNumber);
+    void runSimulation(int frameNumber, bool reRun);
 
     // callback used by the "Clear All" parameter
     static int simulate(void* op, int index, fpreal time, const PRM_Template*);
@@ -42,6 +42,8 @@ private:
     float   oldKCorr;
     float   oldViscosity;
     float   oldVorticity;
+    glm::dvec3 oldMaxCorner;
+    glm::dvec3 oldMinCorner;
     int     currentFrame; //for calculation in simulate
     bool    clearOrNot; //if we want to clear the cache
 
