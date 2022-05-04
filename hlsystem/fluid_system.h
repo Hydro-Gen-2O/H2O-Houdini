@@ -28,7 +28,6 @@
 	#include <iostream>
 	
 	// Physical constants
-	#define GRAVITY glm::dvec3(0, 0, -9.8)
 	#define GRAVITY_ON 1
 
 	// Tunable(ish) parameters
@@ -36,7 +35,6 @@
 	#define REST_DENSITY 6378.0
 	#define MAX_NEIGHBOR 50
 	#define RELAXATION 600.0
-
 
 	// Vector params
 	//#define SPH_VOLMIN glm::dvec3(-10, -10, 0)
@@ -50,6 +48,8 @@
 		double SPH_RADIUS;
 		glm::dvec3  SPH_VOLMIN = glm::dvec3(-10, -10, 0);
 		glm::dvec3  SPH_VOLMAX = glm::dvec3(10, 10, 20);
+
+		glm::dvec3 FORCE = glm::dvec3(0, 0, -9.8);
 
 		void SPH_CreateExample(std::vector<glm::dvec3> p);
 		void setParameters(int ite, double visc, double vor, double tensile);

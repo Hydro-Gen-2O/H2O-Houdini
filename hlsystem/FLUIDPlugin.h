@@ -31,21 +31,23 @@ private:
     //exint MAX_PTS(exint t) { return evalFloat("maxPts", 0, t); }
 
     exint CONSTRAINT_ITERATION(exint t) { return evalInt("constraintIteration", 0, t); }
+    exint FRAME_BAKE(exint t) { return evalInt("frameToBake", 0, t); }
     fpreal ARTIFICIAL_PRESSURE(fpreal t) { return evalFloat("artificialPressure", 0, t); }
     fpreal VISCOSITY(fpreal t) { return evalFloat("viscosity", 0, t); }
     fpreal VORTICITY_CONFINEMENT(fpreal t) { return evalFloat("vorticityConfinement", 0, t); }
     //exint START_FRAME(exint t) { return evalInt("startFrame", 0, t); }
 
-    bool init;
-    int     oldIteration;
+    glm::dvec3 force;
+    bool validFluidPs;
+    int frameRange;
+    int iters;
     //int     myStartFrame;
-    float   oldKCorr;
-    float   oldViscosity;
-    float   oldVorticity;
-    glm::dvec3 oldMaxCorner;
-    glm::dvec3 oldMinCorner;
+    float kcorr;
+    float viscosity;
+    float vorticity;
+    glm::dvec3 maxCorner;
+    glm::dvec3 minCorner;
     int     currentFrame; //for calculation in simulate
-    bool    clearOrNot; //if we want to clear the cache
 
     OP_Context* myContext;
     FluidSystem* myFS;

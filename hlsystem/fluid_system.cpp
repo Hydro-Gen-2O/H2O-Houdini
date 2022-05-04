@@ -79,10 +79,10 @@ void FluidSystem::cleanUp()
 void FluidSystem::SPH_CreateExample(std::vector<glm::dvec3> p) {
 	cleanUp();
 
-	gridSpaceDiag = glm::ivec3((scaledMax - scaledMin) / SPH_RADIUS);
-	totalGridCells = gridSpaceDiag.x * gridSpaceDiag.y * gridSpaceDiag.z;
 	scaledMin = glm::dvec3(SPH_VOLMIN) * SPH_RADIUS;
 	scaledMax = glm::dvec3(SPH_VOLMAX) * SPH_RADIUS;
+	gridSpaceDiag = glm::ivec3((scaledMax - scaledMin) / SPH_RADIUS);
+	totalGridCells = gridSpaceDiag.x * gridSpaceDiag.y * gridSpaceDiag.z;
 
 	for (auto& pt : p) {
 		fluidPs.push_back(std::make_unique<Fluid>(pt * SPH_RADIUS));
@@ -123,7 +123,7 @@ void FluidSystem::Run() {
 void FluidSystem::PredictPositions() {
 	for (int i = 0; i < fluidPs.size(); ++i) {
 		std::unique_ptr<Fluid>& p = fluidPs.at(i);
-		glm::dvec3 deltaVel = GRAVITY * m_DT; // a * dt = change in v
+		glm::dvec3 deltaVel = FORCE * m_DT; // a * dt = change in v
 
 		// apply force to velocity (gravity)
 		p->vel += (double)GRAVITY_ON * deltaVel;

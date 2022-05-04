@@ -21,8 +21,6 @@
 #include <HOM/HOM_ui.h>
 #include <glm/gtx/string_cast.hpp>
 
-#define FRAME_RANGE 60 // a buffer for more frame than current frame
-
 void newSopOperator(OP_OperatorTable *table) {
     table->addOperator(
 	    new OP_Operator("H2O-plugin",			// Internal name
@@ -38,12 +36,14 @@ void newSopOperator(OP_OperatorTable *table) {
 
 static PRM_Name		constraintIteration("constraintIteration", "Constraint Iteration");
 static PRM_Name		artificialPressure("artificialPressure", "Artificial Pressure");
-static PRM_Name		viscosity("viscosity", "Viscosity");
+static PRM_Name		PRM_viscosity("viscosity", "Viscosity");
 static PRM_Name		vorticityConfinement("vorticityConfinement", "Vorticity Confinement");
-static PRM_Name		minCorner("minCorner", "Min Corner");
-static PRM_Name		maxCorner("maxCorner", "Max Corner");
+static PRM_Name		PRM_minCorner("minCorner", "Min Corner");
+static PRM_Name		PRM_maxCorner("maxCorner", "Max Corner");
 //static PRM_Name		maxPts("maxPts", "Maximum Points");
 static PRM_Name		simulateButton("simulateButton", "Run Simulation");
+static PRM_Name		framesToBake("frameToBake", "Frames To Bake");
+static PRM_Name		PRM_force("force", "Force");
 //				     ^^^^^^^^    ^^^^^^^^^^^^^^^
 //				     internal    descriptive version
 
@@ -52,14 +52,17 @@ static PRM_Default constraintIterationDefault(2);
 static PRM_Default artificialPressureDefault(0.0001);
 static PRM_Default viscosityDefault(0.01);
 static PRM_Default vorticityConfinementDefault(0.0000);
+static PRM_Default frameBakeDefault(60);
 static PRM_Default minDefault[] = { PRM_Default(-10.0), PRM_Default(0.0), PRM_Default(-10.0) };
 static PRM_Default maxDefault[] = { PRM_Default(10.0), PRM_Default(20.0), PRM_Default(10.0) };
+static PRM_Default forceDefault[] = { PRM_Default(0.0), PRM_Default(-9.8), PRM_Default(0.0) };
 //static PRM_Default maxPtsDefault(5000);
 
 static PRM_Range iterationRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 30);
 static PRM_Range tensileRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.01);
 static PRM_Range viscosityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.1);
 static PRM_Range vorticityRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 0.001);
+static PRM_Range frameBakeRange(PRM_RANGE_RESTRICTED, 1, PRM_RANGE_RESTRICTED, 1000);
 //static PRM_Range maxPtsRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_RESTRICTED, 100000);
 
 PRM_Template
@@ -67,27 +70,16 @@ SOP_Fluid::myTemplateList[] = {
 	// default vals
 	PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &constraintIteration, &constraintIterationDefault, 0, &iterationRange),
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &artificialPressure, &artificialPressureDefault, 0, &tensileRange),
-	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &viscosity, &viscosityDefault, 0, &viscosityRange),
+	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &PRM_viscosity, &viscosityDefault, 0, &viscosityRange),
 	PRM_Template(PRM_FLT,	PRM_Template::PRM_EXPORT_MIN, 1, &vorticityConfinement, &vorticityConfinementDefault, 0, &vorticityRange),
-	PRM_Template(PRM_XYZ_J, 3, &minCorner, minDefault),
-	PRM_Template(PRM_XYZ_J, 3, &maxCorner, maxDefault),
+	PRM_Template(PRM_XYZ_J, 3, &PRM_minCorner, minDefault),
+	PRM_Template(PRM_XYZ_J, 3, &PRM_maxCorner, maxDefault),
+	PRM_Template(PRM_XYZ_J, 3, &PRM_force, forceDefault),
+	PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &framesToBake, &frameBakeDefault, 0, &frameBakeRange),
 	//PRM_Template(PRM_INT,	PRM_Template::PRM_EXPORT_MIN, 1, &maxPts, &maxPtsDefault, 0, &maxPtsRange),
 	PRM_Template(PRM_CALLBACK, 1, &simulateButton, 0, 0, 0, &simulate),
 	PRM_Template()
 };
-
-int
-SOP_Fluid::simulate(void* op, int index, fpreal t, const PRM_Template*)
-{
-	SOP_Fluid* fluid = (SOP_Fluid*)op;
-	
-	fluid->runSimulation(fluid->currentFrame, fluid->clearOrNot);
-	//std::cout << fluid->totalPos.size() << std::endl;
-	//fluid->cookMySop(*(fluid->myContext));
-	//fluid->buildGeo();
-	return 1;
-}
-
 // --------------------------end boilerplates-----------------------------------
 
 OP_Node* SOP_Fluid::myConstructor(OP_Network *net, const char *name, OP_Operator *op) {
@@ -98,29 +90,30 @@ SOP_Fluid::SOP_Fluid(OP_Network *net, const char *name, OP_Operator *op) : SOP_N
 	myFS = new FluidSystem();
 	// SET SPH RAD - DUE to sensitivity of SPH sim, we REQUIRE 0.5 distance between points.
 	myFS->SPH_RADIUS = 0.1;
-
-	oldIteration = 2;
-	oldKCorr = 0.0001;
-	oldViscosity = 0.01;
-	oldVorticity = 0.0003;
-	clearOrNot = false;
-
-	init = true;
+	validFluidPs = true;
 }
 
-void SOP_Fluid::runSimulation(int frameNumber, bool reRun) {
-	if (reRun)
-	{
+int SOP_Fluid::simulate(void* op, int index, fpreal t, const PRM_Template*) {
+	SOP_Fluid* fluid = (SOP_Fluid*)op;
+	if (fluid->validFluidPs) {
+		fluid->runSimulation(fluid->currentFrame, true);
+		return 1;
+	}
+	return -1;
+}
+
+void SOP_Fluid::runSimulation(int frameNumber, bool refresh) {
+	if (refresh) {
 		totalPos.clear();
-		clearOrNot = false;
-		myFS->setParameters(oldIteration, oldViscosity, oldVorticity, oldKCorr);
-		myFS->SPH_VOLMIN = oldMinCorner;
-		myFS->SPH_VOLMAX = oldMaxCorner;
+		myFS->setParameters(iters, viscosity, vorticity, kcorr);
+		myFS->SPH_VOLMIN = minCorner;
+		myFS->SPH_VOLMAX = maxCorner;
+		myFS->FORCE = force;
 		myFS->SPH_CreateExample(fluidPs);
 	}
 	int moreFrame = frameNumber - totalPos.size();
 	if (moreFrame >= 0) {
-		for (int i = 0; i <= moreFrame + FRAME_RANGE; ++i) {
+		for (int i = 0; i <= moreFrame + frameRange; ++i) {
 			std::vector<glm::dvec3> temp;
 			for (auto& f : myFS->fluidPs) {
 				glm::dvec3 scaledPos = f->pos;
@@ -143,80 +136,52 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	currentFrame = currframe;
 	myContext = &context;
 
-	// update parameters
-	int ite = CONSTRAINT_ITERATION(now);
-	float kCorr = ARTIFICIAL_PRESSURE(now);
-	float visc = VISCOSITY(now);
-	float vorticity = VORTICITY_CONFINEMENT(now);
-	float minx; //current mincorner
-	float miny;
-	float minz;
-	minx = evalFloat("minCorner", 0, now);
-	miny = evalFloat("minCorner", 1, now);
-	minz = evalFloat("minCorner", 2, now);
-	float maxx; // currentmaxcorner
-	float maxy;
-	float maxz;
-	maxx = evalFloat("maxCorner", 0, now);
-	maxy = evalFloat("maxCorner", 1, now);
-	maxz = evalFloat("maxCorner", 2, now);
-	glm::dvec3 currentMinCorner(minx, minz, miny);
-	glm::dvec3 currentMaxCorner(maxx, maxz, maxy);
-
-
+	// 	// update the simulation values - but do not run, only run on callback - from button
+	iters = CONSTRAINT_ITERATION(now);
+	kcorr = ARTIFICIAL_PRESSURE(now);
+	viscosity = VISCOSITY(now);
+	vorticity = VORTICITY_CONFINEMENT(now);
+	float minx = evalFloat("minCorner", 0, now);
+	float miny = evalFloat("minCorner", 1, now);
+	float minz = evalFloat("minCorner", 2, now);
+	float maxx = evalFloat("maxCorner", 0, now);
+	float maxy = evalFloat("maxCorner", 1, now);
+	float maxz = evalFloat("maxCorner", 2, now);
+	float forcex = evalFloat("force", 0, now);
+	float forcey = evalFloat("force", 1, now);
+	float forcez = evalFloat("force", 2, now);
+	force = glm::dvec3(forcex, forcez, forcey);
+	frameRange = FRAME_BAKE(now);
+	minCorner = glm::dvec3(minx, minz, miny); // flip z & y
+	maxCorner = glm::dvec3(maxx, maxz, maxy);
 	//int maxPts = MAX_PTS(now);
 
 	//get inputs
 	OP_AutoLockInputs inputs(this);
 	if (inputs.lockInput(0, context) >= UT_ERROR_ABORT) { return error(); }
-
-	// only if input geo is different, re-get all the pts
+	// only if input geo is different, re-get all the pts. again, do not run - only callback runs
 	int input_changed;
 	duplicateChangedSource(0, context, &input_changed);
-	if (input_changed || currentMinCorner != myFS->SPH_VOLMIN || currentMaxCorner != myFS->SPH_VOLMAX) {
+	if (input_changed) {
 		fluidPs.clear();
-		// 1st connected input to node
 		GU_Detail* fluid_gdp = new GU_Detail(inputGeo(0, context));
-		/*if (int npts = fluid_gdp->getPointRange().getEntries() > maxPts) {
-			addWarning(SOP_MESSAGE, "Too many pts: " + npts);
-			return error();
-		}*/
-		
 		GA_Offset ptoff;
 		GA_FOR_ALL_PTOFF(fluid_gdp, ptoff) {
 			UT_Vector3 pos = fluid_gdp->getPos3(ptoff);
 			glm::dvec3 p(pos[0], pos[2], pos[1]);
-			if (p.x > currentMinCorner.x && p.y > currentMinCorner.y && p.z > currentMinCorner.z &&
-				p.x < currentMaxCorner.x && p.y < currentMaxCorner.y && p.z < currentMaxCorner.z)
-			{
+			if (p.x > minCorner.x && p.y > minCorner.y && p.z > minCorner.z &&
+				p.x < maxCorner.x && p.y < maxCorner.y && p.z < maxCorner.z) {
 				fluidPs.push_back(p);
+			} else {
+				addWarning(SOP_MESSAGE, "Fluid volume out of bounds! Decrease fluid volume or increase bounds.");
+				validFluidPs = false;
+				return error();
 			}
-			// check points from volume dist? - somehow automate SPH_RAD?
-			//double pDist = glm::length(fluidPs.at(0) - fluidPs.at(1));
 		}
-		myFS->setParameters(ite, visc, vorticity, kCorr);
-		myFS->SPH_CreateExample(fluidPs);
-		clearOrNot = true;
+		validFluidPs = true;
 	}
 	
-	if (init) { // do this just once in the beginning
-		myFS->SPH_CreateExample(fluidPs);
-		init = false;
-	}
-
-	if (ite != oldIteration || kCorr != oldKCorr || visc != oldViscosity || vorticity != oldVorticity ||
-				currentMinCorner != myFS->SPH_VOLMIN || currentMaxCorner != myFS->SPH_VOLMAX) {
-		oldIteration = ite;
-		oldKCorr = kCorr;
-		oldViscosity = visc;
-		oldVorticity = vorticity;
-		oldMinCorner = currentMinCorner;
-		oldMaxCorner = currentMaxCorner;
-		/*myFS->setParameters(ite, visc, vorticity, kCorr);
-		myFS->SPH_CreateExample(fluidPs);*/
-		clearOrNot = true;
-	}
-	runSimulation(currframe, false);
+	runSimulation(currframe, false); // update if user is scrubbing
 
     UT_Interrupt *boss;
     if (error() < UT_ERROR_ABORT) {
@@ -224,19 +189,8 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 		gdp->clearAndDestroy();
 
 		if (boss->opStart("Building Fluid") && 
-			currframe < totalPos.size()) {	// currframe generation might not be able to catch up?
+			currframe < totalPos.size()) {	// currframe generation might not be able to catch up
 			for (auto& f : totalPos.at(currframe)) {
-				/*UT_Vector3 pos;
-				pos(0) = f.x;
-				pos(1) = f.z;
-				pos(2) = f.y;
-
-				GU_PrimSphereParms sphere(gdp);
-				double scale = myFS->SPH_RADIUS * 0.4;
-				sphere.xform.scale(scale, scale, scale);
-				sphere.xform.translate(pos);
-				GU_PrimSphere::build(sphere, GEO_PRIMSPHERE);*/
-
 				UT_Vector3 pos;
 				pos(0) = f.x;
 				pos(1) = f.z;
@@ -246,13 +200,8 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 
 				gdp->setPos3(ptoffstart, pos);
 			}
-			// Highlight the star which we have just generated.  This routine
-			// call clears any currently highlighted geometry, and then it
-			// highlights every primitive for this SOP. 
 			select(GU_SPrimitive);
 		}
-		// Tell the interrupt server that we've completed. Must do this
-		// regardless of what opStart() returns.
 		boss->opEnd();
     }
 
