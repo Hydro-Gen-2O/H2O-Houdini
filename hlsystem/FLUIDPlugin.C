@@ -136,6 +136,10 @@ OP_ERROR SOP_Fluid::cookMySop(OP_Context &context) {
 	currentFrame = currframe;
 	myContext = &context;
 
+	if (!validFluidPs) {
+		addWarning(SOP_MESSAGE, "Fluid volume out of bounds! Decrease fluid volume or increase bounds.");
+	}
+
 	// 	// update the simulation values - but do not run, only run on callback - from button
 	iters = CONSTRAINT_ITERATION(now);
 	kcorr = ARTIFICIAL_PRESSURE(now);
